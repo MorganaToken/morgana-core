@@ -1,50 +1,49 @@
 <div align="center">
-  <img src="themes/src/main/resources/theme/guinsoolab/welcome/resources/logo.png" width="120" alt="logo" />
+  <img src="https://raw.githubusercontent.com/MorganaToken/morgana-core/main/themes/src/main/resources/theme/guinsoolab/welcome/resources/logo.png" width="120" alt="logo" />
   <br/>
   <small>An Open Source IAM solution for modern Applications and Services</small>
 </div>
 
-# Keycloak
+# Morgana
 
-Keycloak is an Open Source Identity and Access Management solution for modern Applications and Services.
+Morgana is an Open Source Identity and Access Management solution for modern Applications and Services.
 
-This repository contains the source code for the Keycloak Server, Java adapters and the JavaScript adapter.
+This repository contains the source code for the Morgana Server, Java adapters and the JavaScript adapter.
 
 
 ## Help and Documentation
 
-* [Quickstart](https://www.keycloak.org/documentation.html)
-* [Server Installation](https://www.keycloak.org/docs/latest/server_installation/)
-* [Securing Apps](https://www.keycloak.org/docs/latest/securing_apps/)
-* [Server Administration](https://www.keycloak.org/docs/latest/server_admin/)
-* [Server Developer](https://www.keycloak.org/docs/latest/server_development/)
-* [Authorization Services](https://www.keycloak.org/docs/latest/authorization_services/)
-* [Upgrading](https://www.keycloak.org/docs/latest/upgrading/)
-* [User Mailing List](https://groups.google.com/d/forum/keycloak-user) - Mailing list for help and general questions about Keycloak
-
+* [Quickstart](https://ciusji.gitbook.io/morgana/guides/getting-started)
+* [Server Installation](https://ciusji.gitbook.io/morgana/guides/server-installation-and-configuration)
+* [Securing Apps](https://ciusji.gitbook.io/morgana/guides/securing-applications-and-services)
+* [Server Administration](https://ciusji.gitbook.io/morgana/guides/server-administration)
+* [Server Developer](https://ciusji.gitbook.io/morgana/guides/server-developer)
+* [Authorization Services](https://ciusji.gitbook.io/morgana/guides/authorization-services)
+* [Upgrading](https://ciusji.gitbook.io/morgana/guides/upgrading)
+* [REST APIs](https://ciusji.gitbook.io/morgana/apis/rest-apis)
 
 ## Reporting Security Vulnerabilities
 
-If you've found a security vulnerability, please look at the [instructions on how to properly report it](https://github.com/keycloak/keycloak/security/policy)
+If you've found a security vulnerability, please look at the [instructions on how to properly report it](https://github.com/MorganaToken/morgana-core/security/policy)
 
 
 ## Reporting an issue
 
-If you believe you have discovered a defect in Keycloak, please open [an issue](https://github.com/keycloak/keycloak/issues).
+If you believe you have discovered a defect in Keycloak, please open [an issue](https://github.com/MorganaToken/morgana-core/issues).
 Please remember to provide a good summary, description as well as steps to reproduce the issue.
 
 
 ## Getting started
 
-To run Keycloak, download the distribution from our [website](https://www.keycloak.org/downloads.html). Unzip and run:
+To run Morgana, download the distribution from our [website](https://ciusji.gitbook.io/morgana/guides/getting-started). Unzip and run:
 
     bin/kc.[sh|bat] start-dev
 
 Alternatively, you can use the Docker image by running:
 
-    docker run quay.io/keycloak/keycloak start-dev
+    docker run guinsoolab/morgana-core start-dev
     
-For more details refer to the [Keycloak Documentation](https://www.keycloak.org/documentation.html).
+For more details refer to the [Morgana Documentation](https://ciusji.gitbook.io/morgana/).
 
 
 ## Building from Source
@@ -65,16 +64,6 @@ To write tests, refer to the [writing tests](docs/tests-development.md) guide.
 ## Contributing
 
 Before contributing to Keycloak, please read our [contributing guidelines](CONTRIBUTING.md).
-
-
-## Other Keycloak Projects
-
-* [Keycloak](https://github.com/keycloak/keycloak) - Keycloak Server and Java adapters
-* [Keycloak Documentation](https://github.com/keycloak/keycloak-documentation) - Documentation for Keycloak
-* [Keycloak QuickStarts](https://github.com/keycloak/keycloak-quickstarts) - QuickStarts for getting started with Keycloak
-* [Keycloak Node.js Connect](https://github.com/keycloak/keycloak-nodejs-connect) - Node.js adapter for Keycloak
-* [Keycloak Node.js Admin Client](https://github.com/keycloak/keycloak-nodejs-admin-client) - Node.js library for Keycloak Admin REST API
-
 
 ## License
 
