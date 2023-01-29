@@ -1,0 +1,18 @@
+{
+    "themes": [{
+        "name" : "base",
+        "types": [ "admin", "account", "login", "email" ]
+    }, {
+        "name" : "keycloak",
+        "types": [ "admin", "account", "login", "common", "email", "welcome" ]
+    }, {
+        "name" : "rh-sso",
+        "types": [ "admin", "account", "login", "common", "email", "welcome" ]
+    }, {
+        "name" : "keycloak.v2",
+        "types": [ "account" ]
+    }, {
+        "name" : "rh-sso.v2",
+        "types": [ "account" ]
+    }]
+}
