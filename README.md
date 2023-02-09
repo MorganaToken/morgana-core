@@ -1,7 +1,7 @@
 <div align="center">
   <img src="https://raw.githubusercontent.com/MorganaToken/morgana-core/main/themes/src/main/resources/theme/guinsoolab/welcome/resources/logo.png" width="120" alt="logo" />
   <br/>
-  <small>An Open Source IAM solution for modern Applications and Services</small>
+  <a href="https://git.io/typing-svg"><img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=14&pause=1000&color=FA9933&center=true&width=700&lines=An+Open+Source+IAM+solution+for+modern+Applications+and+Services" alt="Typing SVG" /></a>
 </div>
 
 # Morgana
