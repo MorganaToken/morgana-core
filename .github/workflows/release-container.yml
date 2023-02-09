@@ -46,7 +46,7 @@
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build and push the image
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         with:
           context: quarkus/container
           platforms: linux/amd64,linux/arm64
