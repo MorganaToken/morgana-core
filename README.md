@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/MorganaToken/morgana-core/main/themes/src/main/resources/theme/guinsoolab/welcome/resources/logo.png" width="120" alt="logo" />
+  <img src="https://raw.githubusercontent.com/MorganaToken/morgana-core/main/themes/src/main/resources/theme/guinsoolab/welcome/resources/logo.png" width="100" alt="logo" />
   <br/>
   <small>An Open Source IAM solution for modern Applications and Services</small>
 </div>
@@ -68,4 +68,7 @@ Before contributing to Keycloak, please read our [contributing guidelines](CONTR
 
 ## License
 
-* [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+[Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+
+<img src="https://raw.githubusercontent.com/GuinsooLab/glab/main/src/images/guinsoolab-group.svg" width="120" alt="license" />
+
