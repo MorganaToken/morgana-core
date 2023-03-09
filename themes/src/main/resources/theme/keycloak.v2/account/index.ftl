@@ -143,7 +143,7 @@
 
                 loadjs("/Main.js");
             }).catch(() => {
-                alert('failed to initialize keycloak');
+                alert('failed to initialize morgana');
             });
         </script>
 

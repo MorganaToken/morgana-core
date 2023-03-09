@@ -23,7 +23,7 @@
 
 <html>
 <head>
-    <title>Welcome to ${productName}</title>
+    <title>Welcome to Morgana</title>
 
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
@@ -45,24 +45,20 @@
 
 <body>
 <div class="container-fluid">
-  <div class="row">
-    <div class="col-sm-10 col-sm-offset-1 col-md-8 col-md-offset-2 col-lg-8 col-lg-offset-2">
-      <div class="welcome-header">
-        <img src="${resourcesPath}/logo.png" alt="${productName}" border="0" />
-        <h1>Welcome to <strong>${productName}</strong></h1>
-      </div>
+  <div class="row" style="margin-top: 12%">
+    <div class="col-sm-8 col-sm-offset-2 col-md-4 col-md-offset-4 col-lg-4 col-lg-offset-4">
       <div class="row">
         <#if adminConsoleEnabled>
-        <div class="col-xs-12 col-sm-4">
+        <div class="col-xs-12 col-sm-12">
           <div class="card-pf h-l">
+            <img src="${resourcesPath}/logo.png" alt="morgana-logo" />
+            <h1>Welcome to <strong>Morgana</strong></h1>
             <#if successMessage?has_content>
                 <p class="alert success">${successMessage}</p>
             <#elseif errorMessage?has_content>
                 <p class="alert error">${errorMessage}</p>
-                <h3><img src="welcome-content/user.png">Administration Console</h3>
             <#elseif bootstrap>
             <#if localUser>
-                <h3><img src="welcome-content/user.png">Administration Console</h3>
                 <p>Please create an initial admin user to get started.</p>
             <#else>
                 <p class="welcome-message">
@@ -96,37 +92,14 @@
             </#if>
 
             <div class="welcome-primary-link">
-              <h3><a href="${adminUrl}"><img src="welcome-content/user.png">Administration Console <i class="fa fa-angle-right link" aria-hidden="true"></i></a></h3>
+              <h3><a href="${adminUrl}">Administration Console <i class="fa fa-arrow-right link" aria-hidden="true"></i></a></h3>
               <div class="description">
-                Centrally manage all aspects of the ${productName} server
+                Centrally manage all aspects of the Morgana server
               </div>
             </div>
           </div>
         </div>
         </#if> <#-- adminConsoleEnabled -->
-        <div class="col-xs-12 col-sm-4">
-          <div class="card-pf h-l">
-            <h3><a href="${properties.documentationUrl}"><img class="doc-img" src="welcome-content/admin-console.png">Documentation <i class="fa fa-angle-right link" aria-hidden="true"></i></a></h3>
-            <div class="description">
-
-              User Guide, Admin REST API and Javadocs
-
-            </div>
-          </div>
-        </div>
-        <div class="col-xs-12 col-sm-4">
-        <#if properties.displayCommunityLinks = "true">
-          <div class="card-pf h-m">
-            <h3><a href="http://www.keycloak.org"><img src="welcome-content/keycloak-project.png">Keycloak Project <i class="fa fa-angle-right link" aria-hidden="true"></i></a></h3>
-          </div>
-          <div class="card-pf h-m">
-            <h3><a href="https://groups.google.com/forum/#!forum/keycloak-user"><img src="welcome-content/mail.png">Mailing List <i class="fa fa-angle-right link" aria-hidden="true"></i></a></h3>
-          </div>
-          <div class="card-pf h-m">
-            <h3><a href="https://github.com/keycloak/keycloak/issues"><img src="welcome-content/bug.png">Report an issue <i class="fa fa-angle-right link" aria-hidden="true"></i></a></h3>
-          </div>
-        </#if>
-        </div>
       </div>
     </div>
   </div>

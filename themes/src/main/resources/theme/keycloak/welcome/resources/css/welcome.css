@@ -1,5 +1,5 @@
 body {
-	background: #fff url(../bg.png) no-repeat center bottom fixed;
+	background: #fff;
 	background-size: cover;
 }
 .welcome-header {
@@ -8,7 +8,7 @@ body {
 	margin-left: -10px;
 }
 .welcome-header img {
-	width: 150px;
+	width: 40px;
 	margin-bottom: 40px;
 }
 .welcome-message {
@@ -16,7 +16,7 @@ body {
 }
 .h-l {
 	min-height: 370px;
-	padding: 10px 20px 10px;
+	padding: 20px 30px 40px;
 	overflow: hidden;
 }
 .h-l h3 {
@@ -27,7 +27,7 @@ body {
 	padding-top: 23px;
 }
 .card-pf img {
-	width: 22px;
+	width: 40px;
 	margin-right: 10px;
 	vertical-align: bottom;
 }
@@ -51,7 +51,7 @@ h3 a:visited {
 h3 a:hover,
 h3 a:hover .link {
 	text-decoration: none;
-	color: #00659c;
+	color: #ff9933;
 }
 .h-l h3 a img {
 	height: 30px;
@@ -63,8 +63,7 @@ h3 a:hover .link {
 }
 
 .card-pf {
-	border-top: 1px solid rgba(3, 3, 3, 0.1);
-	box-shadow: 0 1px 1px rgba(3, 3, 3, 0.275);
+	border-top: 4px solid #ff9933;
 }
 
 .welcome-form label,
@@ -83,21 +82,46 @@ h3 a:hover .link {
 	border-bottom: solid 1px #cbcbcb;
 }
 .welcome-form input:focus {
-	border-bottom: solid 1px #5e99c6;
+	border-bottom: solid 1px #ff9933;
 	outline-width: 0;
 }
 .welcome-form button {
 	margin-top: 10px;
+	width: 100%;
+	height: 40px;
+	border: none;
+	background-image: none;
+	box-shadow: none;
+	background-color: #000;
 }
+
+.welcome-form button:hover {
+	margin-top: 10px;
+	width: 100%;
+	height: 40px;
+	border: none;
+	background-image: none;
+	box-shadow: none;
+	background-color: #000;
+}
+
+.welcome-form button:focus {
+	margin-top: 10px;
+	width: 100%;
+	height: 40px;
+	border: none;
+	background-image: none;
+	box-shadow: none;
+	background-color: #000;
+}
+
 .error {
-  color: #c00;
-	border-color: #c00;
-	padding: 5px 10px;
+  	color: #c00;
+	padding: 5px 0;
 }
 .success {
 	color: #3f9c35;
-	border-color: #3f9c35;
-	padding: 5px 10px;
+	padding: 5px 0;
 }
 .welcome-form + .welcome-primary-link,
 .welcome-message + .welcome-primary-link {

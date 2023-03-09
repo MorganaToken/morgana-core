@@ -6,8 +6,6 @@
 }
 
 .login-pf body {
-    background: url("../img/keycloak-bg.png") no-repeat center center fixed;
-    background-size: cover;
     height: 100%;
 }
 
@@ -21,6 +19,12 @@ textarea.pf-c-form-control {
 
 p.instruction {
     margin: 5px 0;
+}
+
+.pf-c-button.pf-m-primary {
+    color: var(--pf-c-button--m-primary--Color);
+    background-color: #0c0c0d;
+    height: 40px;
 }
 
 .pf-c-button.pf-m-control {
@@ -64,7 +68,7 @@ a#kc-current-locale-link::after {
 }
 
 .login-pf a:hover {
-    color: #0099d3;
+    color: #ff9933;
 }
 
 #kc-logo {
@@ -72,10 +76,10 @@ a#kc-current-locale-link::after {
 }
 
 div.kc-logo-text {
-    background-image: url(../img/keycloak-logo-text.png);
-    background-repeat: no-repeat;
-    height: 63px;
-    width: 300px;
+    /*background-image: url(../img/keycloak-logo-text.png);*/
+    /*background-repeat: no-repeat;*/
+    /*height: 60px;*/
+    /*width: 60px;*/
     margin: 0 auto;
 }
 
@@ -484,11 +488,10 @@ ul#kc-totp-supported-apps {
 
 .card-pf {
     margin: 0 auto;
-    box-shadow: var(--pf-global--BoxShadow--lg);
     padding: 0 20px;
     max-width: 500px;
     border-top: 4px solid;
-    border-color: var(--pf-global--primary-color--100);
+    border-color: #ff9933;
 }
 
 /*phone*/

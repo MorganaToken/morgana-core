@@ -181,7 +181,7 @@ public class QuarkusWelcomeResource {
                 String localAdminUrl = getLocalAdminUrl();
 
                 map.put("localAdminUrl", localAdminUrl);
-                map.put("adminUserCreationMessage", "or set the environment variables KEYCLOAK_ADMIN and KEYCLOAK_ADMIN_PASSWORD before starting the server");
+                map.put("adminUserCreationMessage", "or set the environment variables MORGANA_ADMIN and MORGANA_ADMIN_PASSWORD before starting the server");
 
                 if (isLocal) {
                     String stateChecker = setCsrfCookie();
