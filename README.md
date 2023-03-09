@@ -10,7 +10,7 @@ Morgana is an Open Source Identity and Access Management solution for modern App
 
 This repository contains the source code for the Morgana Server, Java adapters and the JavaScript adapter.
 
-![morgana-flow](https://raw.githubusercontent.com/MorganaToken/morgana-core/main/themes/src/main/resources/theme/guinsoolab/welcome/resources/morgana-flow.png)
+![morgana-flow](https://raw.githubusercontent.com/MorganaToken/morgana-ui/main/apps/admin-ui/public/morgana-flow.png)
 
 ## Help and Documentation
 
