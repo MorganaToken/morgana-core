@@ -17,6 +17,7 @@
 
 package org.keycloak.models.utils;
 
+import org.jboss.logging.Logger;
 import org.keycloak.Config;
 import org.keycloak.Config.Scope;
 import org.keycloak.broker.social.SocialIdentityProvider;
@@ -39,7 +40,7 @@ import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.KeycloakSessionTask;
-import org.keycloak.models.KeycloakTransaction;
+import org.keycloak.models.KeycloakSessionTaskWithResult;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RealmProvider;
 import org.keycloak.models.RoleModel;
@@ -59,11 +60,13 @@ import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.cert.X509Certificate;
+import java.sql.SQLException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -76,15 +79,24 @@ import org.keycloak.provider.ProviderFactory;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.keycloak.models.Constants.REALM_ATTR_USERNAME_CASE_SENSITIVE;
+import static org.keycloak.models.Constants.REALM_ATTR_USERNAME_CASE_SENSITIVE_DEFAULT;
+
 /**
  * Set of helper methods, which are useful in various model implementations.
  *
- * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
+ * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>,
+ * <a href="mailto:daniel.fesenmeyer@bosch.io">Daniel Fesenmeyer</a>
  */
 public final class KeycloakModelUtils {
 
+    private static final Logger logger = Logger.getLogger(KeycloakModelUtils.class);
+
     public static final String AUTH_TYPE_CLIENT_SECRET = "client-secret";
     public static final String AUTH_TYPE_CLIENT_SECRET_JWT = "client-secret-jwt";
+
+    public static final String GROUP_PATH_SEPARATOR = "/";
+    private static final char CLIENT_ROLE_SEPARATOR = '.';
 
     private KeycloakModelUtils() {
     }
@@ -238,34 +250,102 @@ public final class KeycloakModelUtils {
 
     /**
      * Wrap given runnable job into KeycloakTransaction.
-     *
-     * @param factory
-     * @param task
      */
     public static void runJobInTransaction(KeycloakSessionFactory factory, KeycloakSessionTask task) {
-        KeycloakSession session = factory.create();
-        KeycloakTransaction tx = session.getTransactionManager();
-        try {
-            tx.begin();
+        runJobInTransactionWithResult(factory, session -> {
             task.run(session);
+            return null;
+        });
+    }
 
-            if (tx.isActive()) {
-                if (tx.getRollbackOnly()) {
-                    tx.rollback();
+    /**
+     * Wrap a given callable job into a KeycloakTransaction.
+     */
+    public static <V> V runJobInTransactionWithResult(KeycloakSessionFactory factory, final KeycloakSessionTaskWithResult<V> callable) {
+        V result;
+        try (KeycloakSession session = factory.create()) {
+            session.getTransactionManager().begin();
+            try {
+                result = callable.run(session);
+            } catch (Throwable t) {
+                session.getTransactionManager().setRollbackOnly();
+                throw t;
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Creates a new {@link KeycloakSession} and runs the specified callable in a new transaction. If the transaction fails
+     * with a SQL retriable error, the method re-executes the specified callable until it either succeeds or the maximum number
+     * of attempts is reached, leaving some increasing random delay milliseconds between the invocations. It uses the exponential
+     * backoff + jitter algorithm to compute the delay, which is limited to {@code attemptsCount * retryIntervalMillis}.
+     * More details https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+     *
+     * @param factory a reference to the {@link KeycloakSessionFactory}.
+     * @param callable a reference to the {@link KeycloakSessionTaskWithResult} that will be executed in a retriable way.
+     * @param attemptsCount the maximum number of attempts to execute the callable.
+     * @param retryIntervalMillis the base interval value in millis used to compute the delay.
+     * @param <V> the type returned by the callable.
+     * @return the value computed by the callable.
+     */
+    public static <V> V runJobInRetriableTransaction(final KeycloakSessionFactory factory, final KeycloakSessionTaskWithResult<V> callable,
+                                                     final int attemptsCount, final int retryIntervalMillis) {
+        int retryCount = 0;
+        Random rand = new Random();
+        while (true) {
+            try (KeycloakSession session = factory.create()) {
+                session.getTransactionManager().begin();
+                return callable.run(session);
+            } catch (RuntimeException re) {
+                if (isExceptionRetriable(re) && ++retryCount < attemptsCount) {
+                    int delay = Math.min(retryIntervalMillis * attemptsCount, (1 << retryCount) * retryIntervalMillis)
+                            + rand.nextInt(retryIntervalMillis);
+                    logger.debugf("Caught retriable exception, retrying request. Retry count = %s, retry delay = %s", retryCount, delay);
+                    try {
+                        Thread.sleep(delay);
+                    } catch (InterruptedException ie) {
+                        ie.addSuppressed(re);
+                        throw new RuntimeException(ie);
+                    }
                 } else {
-                    tx.commit();
+                    if (retryCount == attemptsCount) {
+                        logger.debug("Exhausted all retry attempts for request.");
+                        throw new RuntimeException("retries exceeded", re);
+                    }
+                    throw re;
                 }
             }
-        } catch (RuntimeException re) {
-            if (tx.isActive()) {
-                tx.rollback();
-            }
-            throw re;
-        } finally {
-            session.close();
         }
     }
 
+    /**
+     * Checks if the specified exception is retriable or not. A retriable exception must be an instance of {@code SQLException}
+     * and must have a 40001 SQL retriable state. This is a standard SQL state as defined in SQL standard, and across the
+     * implementations its meaning boils down to "deadlock" (applies to Postgres, MSSQL, Oracle, MySQL, and others).
+     *
+     * @param exception the exception to be checked.
+     * @return {@code true} if the exception is retriable; {@code false} otherwise.
+     */
+    public static boolean isExceptionRetriable(final Throwable exception) {
+        Objects.requireNonNull(exception);
+        // first find the root cause and check if it is a SQLException
+        Throwable rootCause = exception;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+        // JTA transaction handler might add multiple suppressed exceptions to the root cause, evaluate each of those
+        for (Throwable suppressed : rootCause.getSuppressed()) {
+            if (isExceptionRetriable(suppressed)) {
+                return true;
+            }
+        };
+        if (rootCause instanceof SQLException) {
+            // check if the exception state is a recoverable one (40001)
+            return "40001".equals(((SQLException) rootCause).getSQLState());
+        }
+        return false;
+    }
 
     /**
      * Wrap given runnable job into KeycloakTransaction. Set custom timeout for the JTA transaction (in case we're in the environment with JTA enabled)
@@ -488,13 +568,13 @@ public final class KeycloakModelUtils {
 
     }
 
-    public static List<String> resolveAttribute(GroupModel group, String name) {
-        List<String> values = group.getAttributeStream(name).collect(Collectors.toList());
-        if (!values.isEmpty()) return values;
-        if (group.getParentId() == null) return null;
-        return resolveAttribute(group.getParent(), name);
+    public static Collection<String> resolveAttribute(GroupModel group, String name, boolean aggregateAttrs) {
+        Set<String> values = group.getAttributeStream(name).collect(Collectors.toSet());
+        if ((values.isEmpty() || aggregateAttrs) && group.getParentId() != null) {
+            values.addAll(resolveAttribute(group.getParent(), name, aggregateAttrs));
+        }
+        return values;
     }
-
 
     public static Collection<String> resolveAttribute(UserModel user, String name, boolean aggregateAttrs) {
         List<String> values = user.getAttributeStream(name).collect(Collectors.toList());
@@ -505,13 +585,13 @@ public final class KeycloakModelUtils {
             }
             aggrValues.addAll(values);
         }
-        Stream<List<String>> attributes = user.getGroupsStream()
-                .map(group -> resolveAttribute(group, name))
+        Stream<Collection<String>> attributes = user.getGroupsStream()
+                .map(group -> resolveAttribute(group, name, aggregateAttrs))
                 .filter(Objects::nonNull)
                 .filter(attr -> !attr.isEmpty());
 
         if (!aggregateAttrs) {
-            Optional<List<String>> first = attributes.findFirst();
+            Optional<Collection<String>> first = attributes.findFirst();
             if (first.isPresent()) return first.get();
         } else {
             aggrValues.addAll(attributes.flatMap(Collection::stream).collect(Collectors.toSet()));
@@ -541,7 +621,7 @@ public final class KeycloakModelUtils {
     }
 
     /**
-     * Given the {@code pathParts} of a group with the given {@code groupName}, format the {@pathParts} in order to ignore
+     * Given the {@code pathParts} of a group with the given {@code groupName}, format the {@code segments} in order to ignore
      * group names containing a {@code /} character.
      *
      * @param segments  the path segments
@@ -550,7 +630,7 @@ public final class KeycloakModelUtils {
      * @return a new array of strings with the correct segments in case the group has a name containing slashes
      */
     private static String[] formatPathSegments(String[] segments, int index, String groupName) {
-        String[] nameSegments = groupName.split("/");
+        String[] nameSegments = groupName.split(GROUP_PATH_SEPARATOR);
 
         if (nameSegments.length > 1 && segments.length >= nameSegments.length) {
             for (int i = 0; i < nameSegments.length; i++) {
@@ -582,13 +662,13 @@ public final class KeycloakModelUtils {
         if (path == null) {
             return null;
         }
-        if (path.startsWith("/")) {
+        if (path.startsWith(GROUP_PATH_SEPARATOR)) {
             path = path.substring(1);
         }
-        if (path.endsWith("/")) {
+        if (path.endsWith(GROUP_PATH_SEPARATOR)) {
             path = path.substring(0, path.length() - 1);
         }
-        String[] split = path.split("/");
+        String[] split = path.split(GROUP_PATH_SEPARATOR);
         if (split.length == 0) return null;
 
         return realm.getTopLevelGroupsStream().map(group -> {
@@ -610,6 +690,42 @@ public final class KeycloakModelUtils {
         }).filter(Objects::nonNull).findFirst().orElse(null);
     }
 
+    private static void buildGroupPath(StringBuilder sb, String groupName, GroupModel parent) {
+        if (parent != null) {
+            buildGroupPath(sb, parent.getName(), parent.getParent());
+        }
+        sb.append(GROUP_PATH_SEPARATOR).append(groupName);
+    }
+
+    public static String buildGroupPath(GroupModel group) {
+        StringBuilder sb = new StringBuilder();
+        buildGroupPath(sb, group.getName(), group.getParent());
+        return sb.toString();
+    }
+
+    public static String buildGroupPath(GroupModel group, GroupModel otherParentGroup) {
+        StringBuilder sb = new StringBuilder();
+        buildGroupPath(sb, group.getName(), otherParentGroup);
+        return sb.toString();
+    }
+
+    public static String normalizeGroupPath(final String groupPath) {
+        if (groupPath == null) {
+            return null;
+        }
+
+        String normalized = groupPath;
+
+        if (!normalized.startsWith(GROUP_PATH_SEPARATOR)) {
+            normalized = GROUP_PATH_SEPARATOR +  normalized;
+        }
+        if (normalized.endsWith(GROUP_PATH_SEPARATOR)) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+
+        return normalized;
+    }
+
     /**
      * @param client    {@link ClientModel}
      * @param container {@link ScopeContainerModel}
@@ -629,8 +745,12 @@ public final class KeycloakModelUtils {
 
     // Used in various role mappers
     public static RoleModel getRoleFromString(RealmModel realm, String roleName) {
+        if (roleName == null) {
+            return null;
+        }
+
         // Check client roles for all possible splits by dot
-        int scopeIndex = roleName.lastIndexOf('.');
+        int scopeIndex = roleName.lastIndexOf(CLIENT_ROLE_SEPARATOR);
         while (scopeIndex >= 0) {
             String appName = roleName.substring(0, scopeIndex);
             ClientModel client = realm.getClientByClientId(appName);
@@ -639,7 +759,7 @@ public final class KeycloakModelUtils {
                 return client.getRole(role);
             }
 
-            scopeIndex = roleName.lastIndexOf('.', scopeIndex - 1);
+            scopeIndex = roleName.lastIndexOf(CLIENT_ROLE_SEPARATOR, scopeIndex - 1);
         }
 
         // determine if roleName is a realm role
@@ -648,7 +768,7 @@ public final class KeycloakModelUtils {
 
     // Used for hardcoded role mappers
     public static String[] parseRole(String role) {
-        int scopeIndex = role.lastIndexOf('.');
+        int scopeIndex = role.lastIndexOf(CLIENT_ROLE_SEPARATOR);
         if (scopeIndex > -1) {
             String appName = role.substring(0, scopeIndex);
             role = role.substring(scopeIndex + 1);
@@ -659,6 +779,14 @@ public final class KeycloakModelUtils {
             return rtn;
 
         }
+    }
+
+    public static String buildRoleQualifier(String clientId, String roleName) {
+        if (clientId == null) {
+            return roleName;
+        }
+
+        return clientId + CLIENT_ROLE_SEPARATOR + roleName;
     }
 
     /**
@@ -800,4 +928,16 @@ public final class KeycloakModelUtils {
         return SecretGenerator.SECRET_LENGTH_256_BITS;
     }
 
+    /**
+     * Returns <code>true</code> if given realm has attribute {@link Constants#REALM_ATTR_USERNAME_CASE_SENSITIVE}
+     * set and its value is <code>true</code>. Otherwise default value of it is returned. The default setting 
+     * can be seen at {@link Constants#REALM_ATTR_USERNAME_CASE_SENSITIVE_DEFAULT}.
+     * 
+     * @param realm
+     * @return See the description
+     * @throws NullPointerException if <code>realm</code> is <code>null</code>
+     */
+    public static boolean isUsernameCaseSensitive(RealmModel realm) {
+        return realm.getAttribute(REALM_ATTR_USERNAME_CASE_SENSITIVE, REALM_ATTR_USERNAME_CASE_SENSITIVE_DEFAULT);
+    }
 }

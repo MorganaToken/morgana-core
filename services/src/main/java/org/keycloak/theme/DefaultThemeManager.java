@@ -49,12 +49,10 @@ public class DefaultThemeManager implements ThemeManager {
     private final DefaultThemeManagerFactory factory;
     private final KeycloakSession session;
     private List<ThemeProvider> providers;
-    private final String defaultTheme;
 
     public DefaultThemeManager(DefaultThemeManagerFactory factory, KeycloakSession session) {
         this.factory = factory;
         this.session = session;
-        this.defaultTheme = Config.scope("theme").get("default", Version.NAME.toLowerCase());
     }
 
     @Override
@@ -63,44 +61,20 @@ public class DefaultThemeManager implements ThemeManager {
         return getTheme(name, type);
     }
 
-    private String typeBasedDefault(Theme.Type type) {
-        boolean isProduct = Profile.isProduct();
-
-        if ((type == Theme.Type.ACCOUNT) && isAccount2Enabled()) {
-            return isProduct ? "rh-sso.v2" : "keycloak.v2";
-        }
-
-        return isProduct ? "rh-sso" : "keycloak";
-    }
-    
     @Override
     public Theme getTheme(String name, Theme.Type type) {
-        if (name == null) {
-            name = defaultTheme;
-        }
-
         Theme theme = factory.getCachedTheme(name, type);
         if (theme == null) {
             theme = loadTheme(name, type);
             if (theme == null) {
-                theme = loadTheme(typeBasedDefault(type), type);
-                if (theme == null) {
-                    theme = loadTheme("base", type);
-                }
+                String defaultThemeName = session.getProvider(ThemeSelectorProvider.class).getDefaultThemeName(type);
+                theme = loadTheme(defaultThemeName, type);
                 log.errorv("Failed to find {0} theme {1}, using built-in themes", type, name);
             } else {
                 theme = factory.addCachedTheme(name, type, theme);
             }
         }
-        
-        if (!isAccount2Enabled() && theme.getName().equals("keycloak.v2")) {
-            theme = loadTheme("keycloak", type);
-        }
 
-        if (!isAccount2Enabled() && theme.getName().equals("rh-sso.v2")) {
-            theme = loadTheme("rh-sso", type);
-        }
-        
         return theme;
     }
     
@@ -132,20 +106,19 @@ public class DefaultThemeManager implements ThemeManager {
         List<Theme> themes = new LinkedList<>();
         themes.add(theme);
 
-        if (theme.getImportName() != null) {
-            String[] s = theme.getImportName().split("/");
-            themes.add(findTheme(s[1], Theme.Type.valueOf(s[0].toUpperCase())));
-        }
+        if (!processImportedTheme(themes, theme, name, type)) return null;
 
         if (theme.getParentName() != null) {
             for (String parentName = theme.getParentName(); parentName != null; parentName = theme.getParentName()) {
+                String currentThemeName = theme.getName();
                 theme = findTheme(parentName, type);
+                if (theme == null) {
+                    log.warnf("Not found parent theme '%s' of theme '%s'. Unable to load %s theme '%s' due to this.", parentName, currentThemeName, type, name);
+                    return null;
+                }
                 themes.add(theme);
 
-                if (theme.getImportName() != null) {
-                    String[] s = theme.getImportName().split("/");
-                    themes.add(findTheme(s[1], Theme.Type.valueOf(s[0].toUpperCase())));
-                }
+                if (!processImportedTheme(themes, theme, name, type)) return null;
             }
         }
 
@@ -163,6 +136,19 @@ public class DefaultThemeManager implements ThemeManager {
             }
         }
         return null;
+    }
+
+    private boolean processImportedTheme(List<Theme> themes, Theme theme, String origThemeName, Theme.Type type) {
+        if (theme.getImportName() != null) {
+            String[] s = theme.getImportName().split("/");
+            Theme importedTheme = findTheme(s[1], Theme.Type.valueOf(s[0].toUpperCase()));
+            if (importedTheme == null) {
+                log.warnf("Not found theme '%s' referenced as import of theme '%s'. Unable to load %s theme '%s' due to this.", theme.getImportName(), theme.getName(), type, origThemeName);
+                return false;
+            }
+            themes.add(importedTheme);
+        }
+        return true;
     }
 
     private static class ExtendingTheme implements Theme {

@@ -16,6 +16,7 @@
  */
 package org.keycloak.testsuite.forms;
 
+import org.hamcrest.Matchers;
 import org.jboss.arquillian.graphene.page.Page;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -36,7 +37,6 @@ import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.testsuite.AssertEvents;
 import org.keycloak.testsuite.AbstractTestRealmKeycloakTest;
-import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
 import org.keycloak.testsuite.arquillian.annotation.DisableFeature;
 import org.keycloak.testsuite.pages.AccountUpdateProfilePage;
 import org.keycloak.testsuite.pages.AppPage;
@@ -52,6 +52,7 @@ import org.keycloak.testsuite.util.OAuthClient;
 import org.keycloak.testsuite.util.UserBuilder;
 
 import javax.mail.internet.MimeMessage;
+import javax.ws.rs.core.Response;
 import java.io.IOException;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -59,9 +60,8 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.jgroups.util.Util.assertTrue;
 import static org.junit.Assert.assertEquals;
-import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
+import static org.junit.Assert.assertTrue;
 
 /**
  * @author <a href="mailto:sthorger@redhat.com">Stian Thorgersen</a>
@@ -113,7 +113,7 @@ public class RegisterTest extends AbstractTestRealmKeycloakTest {
         assertEquals("", registerPage.getPassword());
         assertEquals("", registerPage.getPasswordConfirm());
 
-        events.expectRegister("rolerichuser", "registerExistingUser@email")
+        events.expectRegister("roleRichUser", "registerExistingUser@email")
                 .removeDetail(Details.EMAIL)
                 .user((String) null).error("username_in_use").assertEvent();
     }
@@ -137,7 +137,7 @@ public class RegisterTest extends AbstractTestRealmKeycloakTest {
         assertEquals("", registerPage.getPassword());
         assertEquals("", registerPage.getPasswordConfirm());
 
-        events.expectRegister("registerexistinguser", "registerExistingUser@email")
+        events.expectRegister("registerExistingUser", "registerExistingUser@email")
                 .removeDetail(Details.EMAIL)
                 .user((String) null).error("email_in_use").assertEvent();
     }
@@ -331,7 +331,7 @@ public class RegisterTest extends AbstractTestRealmKeycloakTest {
         registerPage.register("firstName", "lastName", null, "registerUserMissingEmail", "password", "password");
         registerPage.assertCurrent();
         assertEquals("Please specify email.", registerPage.getInputAccountErrors().getEmailError());
-        events.expectRegister("registerusermissingemail", null)
+        events.expectRegister("registerUserMissingEmail", null)
                 .removeDetail("email")
                 .error("invalid_registration").assertEvent();
     }
@@ -346,7 +346,7 @@ public class RegisterTest extends AbstractTestRealmKeycloakTest {
         registerPage.assertCurrent();
         assertEquals("registerUserInvalidEmailemail", registerPage.getEmail());
         assertEquals("Invalid email address.", registerPage.getInputAccountErrors().getEmailError());
-        events.expectRegister("registeruserinvalidemail", "registerUserInvalidEmailemail")
+        events.expectRegister("registerUserInvalidEmail", "registerUserInvalidEmailemail")
                 .error("invalid_registration").assertEvent();
     }
 
@@ -375,12 +375,12 @@ public class RegisterTest extends AbstractTestRealmKeycloakTest {
         Assert.assertNotNull(user);
         Assert.assertNotNull(user.getCreatedTimestamp());
         // test that timestamp is current with 10s tollerance
-        Assert.assertTrue((System.currentTimeMillis() - user.getCreatedTimestamp()) < 10000);
+        assertTrue((System.currentTimeMillis() - user.getCreatedTimestamp()) < 10000);
         assertUserBasicRegisterAttributes(userId, username, email, "firstName", "lastName");
     }
 
     @Test
-    @AuthServerContainerExclude(AuthServer.REMOTE) // GreenMailRule is not working atm
+     // GreenMailRule is not working atm
     public void registerUserSuccessWithEmailVerification() throws Exception {
         try (RealmAttributeUpdater rau = setVerifyEmail(true).update()) {
             loginPage.open();
@@ -422,7 +422,7 @@ public class RegisterTest extends AbstractTestRealmKeycloakTest {
     }
 
     @Test
-    @AuthServerContainerExclude(AuthServer.REMOTE) // GreenMailRule is not working atm
+     // GreenMailRule is not working atm
     public void registerUserSuccessWithEmailVerificationWithResend() throws Exception {
         try (RealmAttributeUpdater rau = setVerifyEmail(true).update()) {
             loginPage.open();
@@ -516,7 +516,9 @@ public class RegisterTest extends AbstractTestRealmKeycloakTest {
             assertTrue(registerPage.isCurrent());
             assertEquals("Invalid password: must not be equal to the username.", registerPage.getInputPasswordErrors().getPasswordError());
 
-            adminClient.realm("test").users().create(UserBuilder.create().username("registerUserNotUsername").build());
+            try (Response response = adminClient.realm("test").users().create(UserBuilder.create().username("registerUserNotUsername").build())) {
+                assertEquals(Response.Status.CREATED.getStatusCode(), response.getStatus());
+            }
 
             registerPage.register("firstName", "lastName", "registerUserNotUsername@email", "registerUserNotUsername", "registerUserNotUsername", "registerUserNotUsername");
 
@@ -607,7 +609,7 @@ public class RegisterTest extends AbstractTestRealmKeycloakTest {
             Assert.assertNotNull(user);
             Assert.assertNotNull(user.getCreatedTimestamp());
             // test that timestamp is current with 10s tollerance
-            Assert.assertTrue((System.currentTimeMillis() - user.getCreatedTimestamp()) < 10000);
+            assertTrue((System.currentTimeMillis() - user.getCreatedTimestamp()) < 10000);
         }
     }
 
@@ -696,7 +698,7 @@ public class RegisterTest extends AbstractTestRealmKeycloakTest {
         assertThat(user, notNullValue());
 
         if (username != null) {
-            assertThat(username.toLowerCase(), is(user.getUsername()));
+            assertThat(username, Matchers.equalToIgnoringCase(user.getUsername()));
         }
         assertThat(email.toLowerCase(), is(user.getEmail()));
         assertThat(firstName, is(user.getFirstName()));

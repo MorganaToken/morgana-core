@@ -39,7 +39,6 @@ import org.keycloak.storage.UserStorageProvider;
 import org.keycloak.storage.UserStorageUtil;
 import org.keycloak.testsuite.AbstractAuthTest;
 import org.keycloak.testsuite.admin.ApiUtil;
-import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
 import org.keycloak.testsuite.arquillian.annotation.DisableFeature;
 import org.keycloak.testsuite.arquillian.annotation.ModelTest;
 import org.keycloak.testsuite.federation.UserMapStorage;
@@ -51,6 +50,7 @@ import org.keycloak.testsuite.pages.VerifyEmailPage;
 import org.keycloak.testsuite.updaters.RealmAttributeUpdater;
 import org.keycloak.testsuite.util.GreenMailRule;
 import org.keycloak.testsuite.util.TestCleanup;
+import org.openqa.selenium.Cookie;
 
 import javax.mail.internet.MimeMessage;
 import javax.ws.rs.NotFoundException;
@@ -73,14 +73,18 @@ import java.util.stream.Stream;
 import static java.util.Calendar.DAY_OF_WEEK;
 import static java.util.Calendar.HOUR_OF_DAY;
 import static java.util.Calendar.MINUTE;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.keycloak.models.UserModel.RequiredAction.UPDATE_PROFILE;
+import static org.keycloak.services.managers.AuthenticationManager.KEYCLOAK_SESSION_COOKIE;
+import static org.keycloak.services.util.CookieHelper.LEGACY_COOKIE;
 import static org.keycloak.storage.UserStorageProviderModel.CACHE_POLICY;
 import static org.keycloak.storage.UserStorageProviderModel.EVICTION_DAY;
 import static org.keycloak.storage.UserStorageProviderModel.EVICTION_HOUR;
@@ -88,7 +92,6 @@ import static org.keycloak.storage.UserStorageProviderModel.EVICTION_MINUTE;
 import static org.keycloak.storage.UserStorageProviderModel.IMPORT_ENABLED;
 import static org.keycloak.storage.UserStorageProviderModel.MAX_LIFESPAN;
 import static org.keycloak.testsuite.actions.RequiredActionEmailVerificationTest.getPasswordResetEmailLink;
-import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 
 import static org.keycloak.testsuite.util.URLAssert.assertCurrentUrlDoesntStartWith;
 import static org.keycloak.testsuite.util.URLAssert.assertCurrentUrlStartsWith;
@@ -97,7 +100,6 @@ import static org.keycloak.testsuite.util.URLAssert.assertCurrentUrlStartsWith;
  *
  * @author tkyjovsk
  */
-@AuthServerContainerExclude(AuthServer.REMOTE)
 @DisableFeature(value = Profile.Feature.ACCOUNT2, skipRestart = true) // TODO remove this (KEYCLOAK-16228)
 public class UserStorageTest extends AbstractAuthTest {
 
@@ -246,6 +248,26 @@ public class UserStorageTest extends AbstractAuthTest {
     }
 
     @Test
+    public void testLoginSuccessWithSpecialCharacter() {
+        testRealmAccountPage.navigateTo();
+        testRealmLoginPage.form().login("spécial", "pw");
+        assertCurrentUrlStartsWith(testRealmAccountPage);
+
+        Cookie sameSiteSessionCookie = driver.manage().getCookieNamed(KEYCLOAK_SESSION_COOKIE);
+        Cookie legacySessionCookie = driver.manage().getCookieNamed(KEYCLOAK_SESSION_COOKIE + LEGACY_COOKIE);
+
+        String cookieValue = sameSiteSessionCookie.getValue();
+        Assert.assertThat(cookieValue.contains("spécial"), is(false));
+        Assert.assertThat(cookieValue.contains("sp%C3%A9cial"), is(true));
+
+        String legacyCookieValue = legacySessionCookie.getValue();
+        Assert.assertThat(legacyCookieValue.contains("spécial"), is(false));
+        Assert.assertThat(legacyCookieValue.contains("sp%C3%A9cial"), is(true));
+
+        testRealmAccountPage.logOut();
+    }
+
+    @Test
     public void testUpdate() {
         UserRepresentation thor = ApiUtil.findUserByUsername(testRealmResource(), "thor");
 
@@ -345,7 +367,6 @@ public class UserStorageTest extends AbstractAuthTest {
     }
 
     @Test
-    @AuthServerContainerExclude(AuthServer.REMOTE)
     public void testRegisterWithRequiredEmail() throws Exception {
         try (AutoCloseable c = new RealmAttributeUpdater(testRealmResource())
           .updateWith(r -> {
@@ -423,11 +444,12 @@ public class UserStorageTest extends AbstractAuthTest {
             usernames.add(user.getUsername());
             log.info(user.getUsername());
         }
-        Assert.assertEquals(8, queried.size());
+        Assert.assertEquals(9, queried.size());
         Assert.assertTrue(usernames.contains("thor"));
         Assert.assertTrue(usernames.contains("zeus"));
         Assert.assertTrue(usernames.contains("apollo"));
         Assert.assertTrue(usernames.contains("perseus"));
+        Assert.assertTrue(usernames.contains("spécial"));
         Assert.assertTrue(usernames.contains("tbrady"));
         Assert.assertTrue(usernames.contains("rob"));
         Assert.assertTrue(usernames.contains("jules"));

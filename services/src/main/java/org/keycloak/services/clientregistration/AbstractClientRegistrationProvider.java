@@ -22,6 +22,7 @@ import org.keycloak.events.EventBuilder;
 import org.keycloak.events.EventType;
 import org.keycloak.models.ClientInitialAccessModel;
 import org.keycloak.models.ClientModel;
+import org.keycloak.models.ClientRegistrationAccessTokenConstants;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ModelDuplicateException;
 import org.keycloak.models.RealmModel;
@@ -142,13 +143,14 @@ public abstract class AbstractClientRegistrationProvider implements ClientRegist
         event.event(EventType.CLIENT_UPDATE).client(clientId);
 
         ClientModel client = session.getContext().getRealm().getClientByClientId(clientId);
+        session.setAttribute(ClientRegistrationAccessTokenConstants.ROTATION_ENABLED, true);
         RegistrationAuth registrationAuth = auth.requireUpdate(context, client);
 
         if (!client.getClientId().equals(rep.getClientId())) {
             throw new ErrorResponseException(ErrorCodes.INVALID_CLIENT_METADATA, "Client Identifier modified", Response.Status.BAD_REQUEST);
         }
 
-        RepresentationToModel.updateClient(rep, client);
+        RepresentationToModel.updateClient(rep, client, session);
         RepresentationToModel.updateClientProtocolMappers(rep, client);
 
         if (rep.getDefaultRoles() != null) {
@@ -165,9 +167,15 @@ public abstract class AbstractClientRegistrationProvider implements ClientRegist
         }
 
         if (auth.isRegistrationAccessToken()) {
-            String registrationAccessToken = ClientRegistrationTokenUtils.updateRegistrationAccessToken(session, client, auth.getRegistrationAuth());
+            String registrationAccessToken;
+            if ((boolean) session.getAttribute(ClientRegistrationAccessTokenConstants.ROTATION_ENABLED)) {
+                registrationAccessToken = ClientRegistrationTokenUtils.updateRegistrationAccessToken(session, client, auth.getRegistrationAuth());
+            } else {
+                registrationAccessToken = ClientRegistrationTokenUtils.updateTokenSignature(session, auth);
+            }
             rep.setRegistrationAccessToken(registrationAccessToken);
         }
+        session.removeAttribute(ClientRegistrationAccessTokenConstants.ROTATION_ENABLED);
 
         try {
             session.getContext().setClient(client);

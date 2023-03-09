@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.keycloak.models.map.storage.jpa.clientscope.entity;
+package org.keycloak.models.map.storage.jpa.clientScope.entity;
 
 import java.io.Serializable;
 import org.keycloak.models.map.clientscope.MapClientScopeEntityImpl;
@@ -27,7 +27,7 @@ public class JpaClientScopeMetadata extends MapClientScopeEntityImpl implements 
     }
 
     public JpaClientScopeMetadata() {
-        super();
+        super(DeepCloner.DUMB_CLONER);
     }
 
     private Integer entityVersion;

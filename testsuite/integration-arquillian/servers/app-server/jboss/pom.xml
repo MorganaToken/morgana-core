@@ -22,7 +22,7 @@
     <parent>
         <groupId>org.keycloak.testsuite</groupId>
         <artifactId>integration-arquillian-servers-app-server</artifactId>
-        <version>999-SNAPSHOT</version>
+        <version>999.0.0-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -757,18 +757,6 @@
             </activation>
             <modules>
                 <module>wildfly</module>
-            </modules>
-        </profile>
-        <profile>
-            <id>app-server-relative</id>
-            <activation>
-                <property>
-                    <name>app.server</name>
-                    <value>relative</value>
-                </property>
-            </activation>
-            <modules>
-                <module>relative</module>
             </modules>
         </profile>
     </profiles>

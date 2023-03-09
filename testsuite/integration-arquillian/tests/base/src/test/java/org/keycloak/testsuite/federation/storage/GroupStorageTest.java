@@ -31,8 +31,6 @@ import org.keycloak.storage.group.GroupStorageProvider;
 import org.keycloak.testsuite.AbstractTestRealmKeycloakTest;
 import org.keycloak.testsuite.ProfileAssume;
 import org.keycloak.testsuite.admin.ApiUtil;
-import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
-import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
 import org.keycloak.testsuite.auth.page.AuthRealm;
 import org.keycloak.testsuite.federation.HardcodedGroupStorageProviderFactory;
 
@@ -48,7 +46,6 @@ import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 
-@AuthServerContainerExclude(AuthServer.REMOTE)
 public class GroupStorageTest extends AbstractTestRealmKeycloakTest {
 
     private String providerId;
@@ -104,7 +101,7 @@ public class GroupStorageTest extends AbstractTestRealmKeycloakTest {
                 RealmModel realm = session.realms().getRealmByName(AuthRealm.TEST);
 
                 assertThat(session.groups()
-                            .searchForGroupByName(realm, "group", null, null).stream()
+                            .searchForGroupByNameStream(realm, "group", false, null, null)
                             .map(GroupModel::getName)
                             .collect(Collectors.toList()),
                         allOf(
@@ -122,7 +119,7 @@ public class GroupStorageTest extends AbstractTestRealmKeycloakTest {
                 RealmModel realm = session.realms().getRealmByName(AuthRealm.TEST);
                 // search for groups and check hardcoded-group is not present
                 assertThat(session.groups()
-                            .searchForGroupByName(realm, "group", null, null).stream()
+                            .searchForGroupByNameStream(realm, "group", false, null, null)
                             .map(GroupModel::getName)
                             .collect(Collectors.toList()),
                         allOf(

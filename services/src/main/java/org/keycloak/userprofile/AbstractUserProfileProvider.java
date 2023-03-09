@@ -58,6 +58,7 @@ import org.keycloak.userprofile.validator.UsernameHasValueValidator;
 import org.keycloak.userprofile.validator.UsernameIDNHomographValidator;
 import org.keycloak.userprofile.validator.UsernameMutationValidator;
 import org.keycloak.validate.ValidatorConfig;
+import org.keycloak.validate.validators.EmailValidator;
 
 /**
  * <p>A base class for {@link UserProfileProvider} implementations providing the main hooks for customizations.
@@ -78,7 +79,12 @@ public abstract class AbstractUserProfileProvider<U extends UserProfileProvider>
             case ACCOUNT_OLD:
             case ACCOUNT:
             case UPDATE_PROFILE:
+                if (realm.isRegistrationEmailAsUsername()) {
+                    return false;
+                }
                 return realm.isEditUsernameAllowed();
+            case UPDATE_EMAIL:
+                return realm.isRegistrationEmailAsUsername();
             case USER_API:
                 return true;
             default:
@@ -96,6 +102,9 @@ public abstract class AbstractUserProfileProvider<U extends UserProfileProvider>
             case IDP_REVIEW:
                 return !realm.isRegistrationEmailAsUsername();
             case UPDATE_PROFILE:
+                if (realm.isRegistrationEmailAsUsername()) {
+                    return false;
+                }
                 return realm.isEditUsernameAllowed();
             case UPDATE_EMAIL:
                 return false;
@@ -109,6 +118,12 @@ public abstract class AbstractUserProfileProvider<U extends UserProfileProvider>
     }
 
     private static boolean readEmailCondition(AttributeContext c) {
+        RealmModel realm = c.getSession().getContext().getRealm();
+
+        if (realm.isRegistrationEmailAsUsername() && !realm.isEditUsernameAllowed()) {
+            return false;
+        }
+
         return !Profile.isFeatureEnabled(Profile.Feature.UPDATE_EMAIL) || c.getContext() != UPDATE_PROFILE;
     }
 
@@ -297,7 +312,7 @@ public abstract class AbstractUserProfileProvider<U extends UserProfileProvider>
     private UserProfileMetadata createRegistrationUserCreationProfile() {
         UserProfileMetadata metadata = new UserProfileMetadata(REGISTRATION_USER_CREATION);
 
-        metadata.addAttribute(UserModel.USERNAME, -2, new AttributeValidatorMetadata(RegistrationEmailAsUsernameUsernameValueValidator.ID), new AttributeValidatorMetadata(RegistrationUsernameExistsValidator.ID));
+        metadata.addAttribute(UserModel.USERNAME, -2, new AttributeValidatorMetadata(RegistrationEmailAsUsernameUsernameValueValidator.ID), new AttributeValidatorMetadata(RegistrationUsernameExistsValidator.ID), new AttributeValidatorMetadata(UsernameHasValueValidator.ID));
 
         metadata.addAttribute(UserModel.EMAIL, -1, new AttributeValidatorMetadata(RegistrationEmailAsUsernameEmailValueValidator.ID));
 
@@ -313,7 +328,6 @@ public abstract class AbstractUserProfileProvider<U extends UserProfileProvider>
                 AbstractUserProfileProvider::editUsernameCondition,
                 AbstractUserProfileProvider::readUsernameCondition,
                 new AttributeValidatorMetadata(UsernameHasValueValidator.ID),
-                new AttributeValidatorMetadata(UsernameIDNHomographValidator.ID),
                 new AttributeValidatorMetadata(DuplicateUsernameValidator.ID),
                 new AttributeValidatorMetadata(UsernameMutationValidator.ID)).setAttributeDisplayName("${username}");
 
@@ -322,7 +336,8 @@ public abstract class AbstractUserProfileProvider<U extends UserProfileProvider>
                 AbstractUserProfileProvider::readEmailCondition,
                 new AttributeValidatorMetadata(BlankAttributeValidator.ID, BlankAttributeValidator.createConfig(Messages.MISSING_EMAIL, false)),
         		new AttributeValidatorMetadata(DuplicateEmailValidator.ID),
-        		new AttributeValidatorMetadata(EmailExistsAsUsernameValidator.ID))
+        		new AttributeValidatorMetadata(EmailExistsAsUsernameValidator.ID),
+                new AttributeValidatorMetadata(EmailValidator.ID, ValidatorConfig.builder().config(EmailValidator.IGNORE_EMPTY_VALUE, true).build()))
             .setAttributeDisplayName("${email}");
 
         List<AttributeValidatorMetadata> readonlyValidators = new ArrayList<>();
@@ -364,6 +379,11 @@ public abstract class AbstractUserProfileProvider<U extends UserProfileProvider>
     private UserProfileMetadata createUserResourceValidation(Config.Scope config) {
         Pattern p = getRegexPatternString(config.getArray("admin-read-only-attributes"));
         UserProfileMetadata metadata = new UserProfileMetadata(USER_API);
+
+
+        metadata.addAttribute(UserModel.USERNAME, -2, new AttributeValidatorMetadata(UsernameHasValueValidator.ID));
+        metadata.addAttribute(UserModel.EMAIL, -1, new AttributeValidatorMetadata(EmailValidator.ID, ValidatorConfig.builder().config(EmailValidator.IGNORE_EMPTY_VALUE, true).build()));
+
         List<AttributeValidatorMetadata> readonlyValidators = new ArrayList<>();
 
         if (p != null) {

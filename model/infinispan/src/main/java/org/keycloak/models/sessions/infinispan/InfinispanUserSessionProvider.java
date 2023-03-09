@@ -214,14 +214,12 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
     }
 
     @Override
-    public UserSessionModel createUserSession(RealmModel realm, UserModel user, String loginUsername, String ipAddress, String authMethod, boolean rememberMe, String brokerSessionId, String brokerUserId) {
-        final String userSessionId = keyGenerator.generateKeyString(session, sessionCache);
-        return createUserSession(userSessionId, realm, user, loginUsername, ipAddress, authMethod, rememberMe, brokerSessionId, brokerUserId, UserSessionModel.SessionPersistenceState.PERSISTENT);
-    }
-
-    @Override
     public UserSessionModel createUserSession(String id, RealmModel realm, UserModel user, String loginUsername, String ipAddress,
                                               String authMethod, boolean rememberMe, String brokerSessionId, String brokerUserId, UserSessionModel.SessionPersistenceState persistenceState) {
+        if (id == null) {
+            id = keyGenerator.generateKeyString(session, sessionCache);
+        }
+
         UserSessionEntity entity = new UserSessionEntity();
         entity.setId(id);
         updateSessionEntity(entity, realm, user, loginUsername, ipAddress, authMethod, rememberMe, brokerSessionId, brokerUserId);
@@ -231,11 +229,6 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
 
         UserSessionAdapter adapter = wrap(realm, entity, false);
         adapter.setPersistenceState(persistenceState);
-        
-        if (adapter != null) {
-            DeviceActivityManager.attachDevice(adapter, session);
-        }
-        
         return adapter;
     }
 
@@ -752,7 +745,7 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
         // started and lastSessionRefresh set to current time
         int currentTime = Time.currentTime();
         offlineUserSession.getEntity().setStarted(currentTime);
-        offlineUserSession.setLastSessionRefresh(currentTime);
+        offlineUserSession.getEntity().setLastSessionRefresh(currentTime);
 
         session.getProvider(UserSessionPersisterProvider.class).createUserSession(userSession, true);
 
@@ -865,7 +858,9 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
                     offline ? SessionTimeouts::getOfflineSessionLifespanMs : SessionTimeouts::getUserSessionLifespanMs,
                     offline ? SessionTimeouts::getOfflineSessionMaxIdleMs : SessionTimeouts::getUserSessionMaxIdleMs);
         } else {
-            cache.putAll(sessionsById);
+            Retry.executeWithBackoff((int iteration) -> {
+                cache.putAll(sessionsById);
+            }, 10, 10);
         }
 
         // put all entities to the remoteCache (if exists)
@@ -899,15 +894,17 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
         }
 
         // Import client sessions
-        Cache<UUID, SessionEntityWrapper<AuthenticatedClientSessionEntity>> clientSessCache = offline ? offlineClientSessionCache : clientSessionCache;
-        clientSessCache = CacheDecorators.skipCacheLoaders(clientSessCache);
+        Cache<UUID, SessionEntityWrapper<AuthenticatedClientSessionEntity>> clientSessCache =
+          CacheDecorators.skipCacheLoaders(offline ? offlineClientSessionCache : clientSessionCache);
 
         if (importWithExpiration) {
             importSessionsWithExpiration(clientSessionsById, clientSessCache,
                     offline ? SessionTimeouts::getOfflineClientSessionLifespanMs : SessionTimeouts::getClientSessionLifespanMs,
                     offline ? SessionTimeouts::getOfflineClientSessionMaxIdleMs : SessionTimeouts::getClientSessionMaxIdleMs);
         } else {
-            clientSessCache.putAll(clientSessionsById);
+            Retry.executeWithBackoff((int iteration) -> {
+                clientSessCache.putAll(clientSessionsById);
+            }, 10, 10);
         }
 
         // put all entities to the remoteCache (if exists)
@@ -981,7 +978,6 @@ public class InfinispanUserSessionProvider implements UserSessionProvider {
         UserSessionEntity entity = createUserSessionEntityInstance(userSession);
 
         InfinispanChangelogBasedTransaction<String, UserSessionEntity> userSessionUpdateTx = getTransaction(offline);
-        InfinispanChangelogBasedTransaction<UUID, AuthenticatedClientSessionEntity> clientSessionUpdateTx = getClientSessionTransaction(offline);
 
         SessionUpdateTask<UserSessionEntity> importTask = Tasks.addIfAbsentSync();
         userSessionUpdateTx.addTask(userSession.getId(), importTask, entity, UserSessionModel.SessionPersistenceState.PERSISTENT);

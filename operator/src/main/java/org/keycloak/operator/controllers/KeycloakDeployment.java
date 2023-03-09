@@ -20,16 +20,16 @@ import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.EnvVarBuilder;
 import io.fabric8.kubernetes.api.model.EnvVarSourceBuilder;
-import io.fabric8.kubernetes.api.model.ExecActionBuilder;
+import io.fabric8.kubernetes.api.model.HTTPGetActionBuilder;
 import io.fabric8.kubernetes.api.model.HasMetadata;
+import io.fabric8.kubernetes.api.model.IntOrString;
 import io.fabric8.kubernetes.api.model.PodTemplateSpec;
 import io.fabric8.kubernetes.api.model.ResourceRequirements;
-import io.fabric8.kubernetes.api.model.VolumeBuilder;
-import io.fabric8.kubernetes.api.model.VolumeMountBuilder;
 import io.fabric8.kubernetes.api.model.apps.StatefulSet;
 import io.fabric8.kubernetes.api.model.apps.StatefulSetBuilder;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.quarkus.logging.Log;
+import org.keycloak.common.util.CollectionUtil;
 import org.keycloak.operator.Config;
 import org.keycloak.operator.Constants;
 import org.keycloak.operator.crds.v2alpha1.deployment.Keycloak;
@@ -48,11 +48,13 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static io.smallrye.config.common.utils.StringUtil.replaceNonAlphanumericByUnderscores;
+import static org.keycloak.operator.crds.v2alpha1.CRDUtils.isTlsConfigured;
 
 public class KeycloakDeployment extends OperatorManagedResource implements StatusUpdater<KeycloakStatusBuilder> {
 
-    private final Config config;
+    private final Config operatorConfig;
+    private final KeycloakDistConfigurator distConfigurator;
+
     private final Keycloak keycloakCR;
     private final StatefulSet existingDeployment;
     private final StatefulSet baseDeployment;
@@ -64,20 +66,21 @@ public class KeycloakDeployment extends OperatorManagedResource implements Statu
 
     public KeycloakDeployment(KubernetesClient client, Config config, Keycloak keycloakCR, StatefulSet existingDeployment, String adminSecretName) {
         super(client, keycloakCR);
-        this.config = config;
+        this.operatorConfig = config;
         this.keycloakCR = keycloakCR;
         this.adminSecretName = adminSecretName;
 
         if (existingDeployment != null) {
             Log.info("Existing Deployment provided by controller");
             this.existingDeployment = existingDeployment;
-        }
-        else {
+        } else {
             Log.info("Trying to fetch existing Deployment from the API");
             this.existingDeployment = fetchExistingDeployment();
         }
 
-        baseDeployment = createBaseDeployment();
+        this.baseDeployment = createBaseDeployment();
+        this.distConfigurator = configureDist();
+        mergePodTemplate(this.baseDeployment.getSpec().getTemplate());
     }
 
     @Override
@@ -151,6 +154,11 @@ public class KeycloakDeployment extends OperatorManagedResource implements Statu
             overlayTemplate.getSpec().getContainers().get(0) != null &&
             overlayTemplate.getSpec().getContainers().get(0).getImage() != null) {
             status.addWarningMessage("The image of the keycloak container cannot be modified using podTemplate");
+        }
+
+        if (overlayTemplate.getSpec() != null &&
+            CollectionUtil.isNotEmpty(overlayTemplate.getSpec().getImagePullSecrets())) {
+            status.addWarningMessage("The imagePullSecrets of the keycloak container cannot be modified using podTemplate");
         }
     }
 
@@ -323,149 +331,6 @@ public class KeycloakDeployment extends OperatorManagedResource implements Statu
         }
     }
 
-    private void configureHostname(StatefulSet deployment) {
-        var kcContainer = deployment.getSpec().getTemplate().getSpec().getContainers().get(0);
-        var hostname = this.keycloakCR.getSpec().getHostname();
-        var envVars =  kcContainer.getEnv();
-        if (this.keycloakCR.getSpec().isHostnameDisabled()) {
-            var disableStrictHostname = List.of(
-                new EnvVarBuilder()
-                        .withName("KC_HOSTNAME_STRICT")
-                        .withValue("false")
-                        .build(),
-                new EnvVarBuilder()
-                        .withName("KC_HOSTNAME_STRICT_BACKCHANNEL")
-                        .withValue("false")
-                        .build());
-
-            envVars.addAll(disableStrictHostname);
-        } else {
-            var enabledStrictHostname = List.of(
-                new EnvVarBuilder()
-                        .withName("KC_HOSTNAME")
-                        .withValue(hostname)
-                        .build());
-
-            envVars.addAll(enabledStrictHostname);
-        }
-    }
-
-    private void configureTLS(StatefulSet deployment) {
-        var kcContainer = deployment.getSpec().getTemplate().getSpec().getContainers().get(0);
-        var tlsSecret = this.keycloakCR.getSpec().getTlsSecret();
-        var envVars =  kcContainer.getEnv();
-
-        if (this.keycloakCR.getSpec().isHttp()) {
-            var disableTls = List.of(
-                    new EnvVarBuilder()
-                            .withName("KC_HTTP_ENABLED")
-                            .withValue("true")
-                            .build(),
-                    new EnvVarBuilder()
-                            .withName("KC_HOSTNAME_STRICT_HTTPS")
-                            .withValue("false")
-                            .build(),
-                    new EnvVarBuilder()
-                            .withName("KC_PROXY")
-                            .withValue("edge")
-                            .build());
-
-            envVars.addAll(disableTls);
-        } else {
-            var enabledTls = List.of(
-                    new EnvVarBuilder()
-                            .withName("KC_HTTPS_CERTIFICATE_FILE")
-                            .withValue(Constants.CERTIFICATES_FOLDER + "/tls.crt")
-                            .build(),
-                    new EnvVarBuilder()
-                            .withName("KC_HTTPS_CERTIFICATE_KEY_FILE")
-                            .withValue(Constants.CERTIFICATES_FOLDER + "/tls.key")
-                            .build(),
-                    new EnvVarBuilder()
-                            .withName("KC_PROXY")
-                            .withValue("passthrough")
-                            .build());
-
-            envVars.addAll(enabledTls);
-
-            var volume = new VolumeBuilder()
-                    .withName("keycloak-tls-certificates")
-                    .withNewSecret()
-                    .withSecretName(tlsSecret)
-                    .withOptional(false)
-                    .endSecret()
-                    .build();
-
-            var volumeMount = new VolumeMountBuilder()
-                    .withName(volume.getName())
-                    .withMountPath(Constants.CERTIFICATES_FOLDER)
-                    .build();
-
-            deployment.getSpec().getTemplate().getSpec().getVolumes().add(volume);
-            kcContainer.getVolumeMounts().add(volumeMount);
-        }
-
-        var userRelativePath = readConfigurationValue(Constants.KEYCLOAK_HTTP_RELATIVE_PATH_KEY);
-        var kcRelativePath = (userRelativePath == null) ? "" : userRelativePath;
-        var protocol = (this.keycloakCR.getSpec().isHttp()) ? "http" : "https";
-        var kcPort = (this.keycloakCR.getSpec().isHttp()) ? Constants.KEYCLOAK_HTTP_PORT : Constants.KEYCLOAK_HTTPS_PORT;
-
-        var baseProbe = new ArrayList<>(List.of("curl", "--head", "--fail", "--silent"));
-
-        if (!this.keycloakCR.getSpec().isHttp()) {
-            baseProbe.add("--insecure");
-        }
-
-        var readyProbe = new ArrayList<>(baseProbe);
-        readyProbe.add(protocol + "://127.0.0.1:" + kcPort + kcRelativePath + "/health/ready");
-        var liveProbe = new ArrayList<>(baseProbe);
-        liveProbe.add(protocol + "://127.0.0.1:" + kcPort + kcRelativePath + "/health/live");
-
-        kcContainer
-                .getReadinessProbe()
-                .setExec(new ExecActionBuilder().withCommand(readyProbe).build());
-        kcContainer
-                .getLivenessProbe()
-                .setExec(new ExecActionBuilder().withCommand(liveProbe).build());
-    }
-
-    public String readConfigurationValue(String key) {
-        if (this.keycloakCR != null &&
-                this.keycloakCR.getSpec() != null &&
-                this.keycloakCR.getSpec().getServerConfiguration() != null
-        ) {
-            var serverConfigValue = this.keycloakCR
-                    .getSpec()
-                    .getServerConfiguration()
-                    .stream()
-                    .filter(sc -> sc.getName().equals(key))
-                    .findFirst();
-            if (serverConfigValue.isPresent()) {
-                if (serverConfigValue.get().getValue() != null) {
-                    return serverConfigValue.get().getValue();
-                } else {
-                    var secretSelector = serverConfigValue.get().getSecret();
-                    if (secretSelector == null) {
-                        throw new IllegalStateException("Secret " + serverConfigValue.get().getName() + " not defined");
-                    }
-                    var secret = client.secrets().inNamespace(getNamespace()).withName(secretSelector.getName()).get();
-                    if (secret == null) {
-                        throw new IllegalStateException("Secret " + secretSelector.getName() + " not found in cluster");
-                    }
-                    if (secret.getData().containsKey(secretSelector.getKey())) {
-                        return new String(Base64.getDecoder().decode(secret.getData().get(secretSelector.getKey())), StandardCharsets.UTF_8);
-                    } else {
-                        throw new IllegalStateException("Secret " + secretSelector.getName() + " doesn't contain the expected key " + secretSelector.getKey());
-                    }
-                }
-            } else {
-                return null;
-            }
-        } else {
-            return null;
-        }
-    }
-
     private StatefulSet createBaseDeployment() {
         StatefulSet baseDeployment = new StatefulSetBuilder()
                 .withNewMetadata()
@@ -517,21 +382,49 @@ public class KeycloakDeployment extends OperatorManagedResource implements Statu
 
         Container container = baseDeployment.getSpec().getTemplate().getSpec().getContainers().get(0);
         var customImage = Optional.ofNullable(keycloakCR.getSpec().getImage());
-        container.setImage(customImage.orElse(config.keycloak().image()));
+        container.setImage(customImage.orElse(operatorConfig.keycloak().image()));
 
         if (customImage.isPresent()) {
             container.getArgs().add("--optimized");
         }
 
-        container.setImagePullPolicy(config.keycloak().imagePullPolicy());
+        if (CollectionUtil.isNotEmpty(keycloakCR.getSpec().getImagePullSecrets())) {
+            baseDeployment.getSpec().getTemplate().getSpec().setImagePullSecrets(keycloakCR.getSpec().getImagePullSecrets());
+        }
+
+        container.setImagePullPolicy(operatorConfig.keycloak().imagePullPolicy());
 
         container.setEnv(getEnvVars());
 
-        configureHostname(baseDeployment);
-        configureTLS(baseDeployment);
-        mergePodTemplate(baseDeployment.getSpec().getTemplate());
+        // probes
+        var tlsConfigured = isTlsConfigured(keycloakCR);
+        var userRelativePath = readConfigurationValue(Constants.KEYCLOAK_HTTP_RELATIVE_PATH_KEY);
+        var kcRelativePath = (userRelativePath == null) ? "" : userRelativePath;
+        var protocol = !tlsConfigured ? "HTTP" : "HTTPS";
+        var kcPort = KeycloakService.getServicePort(keycloakCR);
+
+        container.getReadinessProbe().setHttpGet(
+            new HTTPGetActionBuilder()
+                .withScheme(protocol)
+                .withPort(new IntOrString(kcPort))
+                .withPath(kcRelativePath + "/health/ready")
+                .build()
+        );
+        container.getLivenessProbe().setHttpGet(
+            new HTTPGetActionBuilder()
+                .withScheme(protocol)
+                .withPort(new IntOrString(kcPort))
+                .withPath(kcRelativePath + "/health/live")
+                .build()
+        );
 
         return baseDeployment;
+    }
+
+    private KeycloakDistConfigurator configureDist() {
+        final KeycloakDistConfigurator config = new KeycloakDistConfigurator(keycloakCR, baseDeployment, client);
+        config.configureDistOptions();
+        return config;
     }
 
     private List<EnvVar> getEnvVars() {
@@ -541,16 +434,16 @@ public class KeycloakDeployment extends OperatorManagedResource implements Statu
                 .collect(Collectors.toList());
 
         // merge with the CR; the values in CR take precedence
-        if (keycloakCR.getSpec().getServerConfiguration() != null) {
-            serverConfig.removeAll(keycloakCR.getSpec().getServerConfiguration());
-            serverConfig.addAll(keycloakCR.getSpec().getServerConfiguration());
+        if (keycloakCR.getSpec().getAdditionalOptions() != null) {
+            serverConfig.removeAll(keycloakCR.getSpec().getAdditionalOptions());
+            serverConfig.addAll(keycloakCR.getSpec().getAdditionalOptions());
         }
 
         // set env vars
         serverConfigSecretsNames = new HashSet<>();
         List<EnvVar> envVars = serverConfig.stream()
                 .map(v -> {
-                    var envBuilder = new EnvVarBuilder().withName(getEnvVarName(v.getName()));
+                    var envBuilder = new EnvVarBuilder().withName(KeycloakDistConfigurator.getKeycloakOptionEnvVarName(v.getName()));
                     var secret = v.getSecret();
                     if (secret != null) {
                         envBuilder.withValueFrom(
@@ -617,13 +510,13 @@ public class KeycloakDeployment extends OperatorManagedResource implements Statu
                 && !existingDeployment.getStatus().getCurrentRevision().equals(existingDeployment.getStatus().getUpdateRevision())) {
             status.addRollingUpdateMessage("Rolling out deployment update");
         }
+
+        distConfigurator.validateOptions(status);
     }
 
     public Set<String> getConfigSecretsNames() {
         Set<String> ret = new HashSet<>(serverConfigSecretsNames);
-        if (!keycloakCR.getSpec().isHttp()) {
-            ret.add(keycloakCR.getSpec().getTlsSecret());
-        }
+        ret.addAll(distConfigurator.getSecretNames());
         return ret;
     }
 
@@ -666,8 +559,41 @@ public class KeycloakDeployment extends OperatorManagedResource implements Statu
         }
     }
 
-    public static String getEnvVarName(String kcConfigName) {
-        // TODO make this use impl from Quarkus dist (Configuration.toEnvVarFormat)
-        return "KC_" + replaceNonAlphanumericByUnderscores(kcConfigName).toUpperCase();
+    protected String readConfigurationValue(String key) {
+        if (keycloakCR != null &&
+                keycloakCR.getSpec() != null &&
+                keycloakCR.getSpec().getAdditionalOptions() != null
+        ) {
+
+            var serverConfigValue = keycloakCR
+                    .getSpec()
+                    .getAdditionalOptions()
+                    .stream()
+                    .filter(sc -> sc.getName().equals(key))
+                    .findFirst();
+            if (serverConfigValue.isPresent()) {
+                if (serverConfigValue.get().getValue() != null) {
+                    return serverConfigValue.get().getValue();
+                } else {
+                    var secretSelector = serverConfigValue.get().getSecret();
+                    if (secretSelector == null) {
+                        throw new IllegalStateException("Secret " + serverConfigValue.get().getName() + " not defined");
+                    }
+                    var secret = client.secrets().inNamespace(keycloakCR.getMetadata().getNamespace()).withName(secretSelector.getName()).get();
+                    if (secret == null) {
+                        throw new IllegalStateException("Secret " + secretSelector.getName() + " not found in cluster");
+                    }
+                    if (secret.getData().containsKey(secretSelector.getKey())) {
+                        return new String(Base64.getDecoder().decode(secret.getData().get(secretSelector.getKey())), StandardCharsets.UTF_8);
+                    } else {
+                        throw new IllegalStateException("Secret " + secretSelector.getName() + " doesn't contain the expected key " + secretSelector.getKey());
+                    }
+                }
+            } else {
+                return null;
+            }
+        } else {
+            return null;
+        }
     }
 }

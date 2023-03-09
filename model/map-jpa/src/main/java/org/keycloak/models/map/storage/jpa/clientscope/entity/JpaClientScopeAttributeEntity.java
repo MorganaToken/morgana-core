@@ -14,19 +14,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.keycloak.models.map.storage.jpa.clientscope.entity;
+package org.keycloak.models.map.storage.jpa.clientScope.entity;
 
 import javax.persistence.Entity;
 import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
 
-import org.keycloak.models.map.storage.jpa.JpaAttributeEntity;
+import org.keycloak.models.map.storage.jpa.JpaAttributeEntityWithHashValue;
 
 @Entity
 @Table(name = "kc_client_scope_attribute", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"fk_root", "name", "value"})
+        @UniqueConstraint(columnNames = {"fk_root", "name", "value_hash"})
 })
-public class JpaClientScopeAttributeEntity extends JpaAttributeEntity<JpaClientScopeEntity> {
+public class JpaClientScopeAttributeEntity extends JpaAttributeEntityWithHashValue<JpaClientScopeEntity> {
 
     public JpaClientScopeAttributeEntity() {
     }

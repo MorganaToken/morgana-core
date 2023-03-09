@@ -35,6 +35,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInfo;
 import org.keycloak.operator.Constants;
 import org.keycloak.operator.crds.v2alpha1.deployment.Keycloak;
 
@@ -46,7 +47,6 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.time.Duration;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -104,8 +104,11 @@ public abstract class BaseOperatorTest {
   }
 
   @BeforeEach
-  public void beforeEach() {
-    Log.info(((operatorDeployment == OperatorDeployment.remote) ? "Remote " : "Local ") + "Run Test :" + namespace);
+  public void beforeEach(TestInfo testInfo) {
+    String testClassName = testInfo.getTestClass().map(c -> c.getSimpleName() + ".").orElse("");
+    Log.info("\n------- STARTING: " + testClassName + testInfo.getDisplayName() + "\n"
+            + "------- Namespace: " + namespace + "\n"
+            + "------- Mode: " + ((operatorDeployment == OperatorDeployment.remote) ? "remote" : "local"));
   }
 
   private static void createK8sClient() {
@@ -143,17 +146,14 @@ public abstract class BaseOperatorTest {
     Log.info("Registering reconcilers for operator : " + operator + " [" + operatorDeployment + "]");
 
     for (Reconciler<?> reconciler : reconcilers) {
-      final var config = configuration.getConfigurationFor(reconciler);
-      if (!config.isRegistrationDelayed()) {
-        Log.info("Register and apply : " + reconciler.getClass().getName());
-        OperatorProducer.applyCRDIfNeededAndRegister(operator, reconciler, configuration);
-      }
+      Log.info("Register and apply : " + reconciler.getClass().getName());
+      OperatorProducer.applyCRDAndRegister(operator, reconciler, configuration);
     }
   }
 
   private static void createOperator() {
+    configuration.getClientConfiguration().setNamespace(namespace);
     operator = new Operator(k8sclient, configuration);
-    operator.getConfigurationService().getClientConfiguration().setNamespace(namespace);
   }
 
   private static void createNamespace() {

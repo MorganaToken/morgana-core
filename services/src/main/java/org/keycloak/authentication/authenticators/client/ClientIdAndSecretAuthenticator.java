@@ -64,7 +64,7 @@ public class ClientIdAndSecretAuthenticator extends AbstractClientAuthenticator 
         MultivaluedMap<String, String> formData = hasFormData ? context.getHttpRequest().getDecodedFormParameters() : null;
 
         if (authorizationHeader != null) {
-            String[] usernameSecret = BasicAuthHelper.UrlEncoded.parseHeader(authorizationHeader);
+            String[] usernameSecret = BasicAuthHelper.RFC6749.parseHeader(authorizationHeader);
             if (usernameSecret != null) {
                 client_id = usernameSecret[0];
                 clientSecret = usernameSecret[1];
@@ -122,7 +122,7 @@ public class ClientIdAndSecretAuthenticator extends AbstractClientAuthenticator 
         }
 
         if (clientSecret == null) {
-            Response challengeResponse = ClientAuthUtil.errorResponse(Response.Status.UNAUTHORIZED.getStatusCode(), "unauthorized_client", "Client secret not provided in request");
+            Response challengeResponse = ClientAuthUtil.errorResponse(Response.Status.UNAUTHORIZED.getStatusCode(), "unauthorized_client", "Invalid client or Invalid client credentials");
             context.challenge(challengeResponse);
             return;
         }
@@ -210,7 +210,7 @@ public class ClientIdAndSecretAuthenticator extends AbstractClientAuthenticator 
     }
 
     private void reportFailedAuth(ClientAuthenticationFlowContext context) {
-        Response challengeResponse = ClientAuthUtil.errorResponse(Response.Status.UNAUTHORIZED.getStatusCode(), "unauthorized_client", "Invalid client secret");
+        Response challengeResponse = ClientAuthUtil.errorResponse(Response.Status.UNAUTHORIZED.getStatusCode(), "unauthorized_client", "Invalid client or Invalid client credentials");
         context.failure(AuthenticationFlowError.INVALID_CLIENT_CREDENTIALS, challengeResponse);
     }
 }

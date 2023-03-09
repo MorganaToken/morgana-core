@@ -31,6 +31,7 @@ import org.keycloak.models.RealmModel;
 import org.keycloak.models.RealmModel.SearchableFields;
 import org.keycloak.models.RealmProvider;
 import org.keycloak.models.RoleModel;
+import org.keycloak.models.map.common.DeepCloner;
 import org.keycloak.models.map.storage.MapKeycloakTransaction;
 import org.keycloak.models.map.storage.MapStorage;
 import org.keycloak.models.map.storage.ModelCriteriaBuilder.Operator;
@@ -71,13 +72,13 @@ public class MapRealmProvider implements RealmProvider {
             throw new ModelDuplicateException("Realm with given name exists: " + name);
         }
 
-        if (id != null && tx.read(id) != null) {
+        if (id != null && tx.exists(id)) {
             throw new ModelDuplicateException("Realm exists: " + id);
         }
 
         LOG.tracef("createRealm(%s, %s)%s", id, name, getShortStackTrace());
 
-        MapRealmEntity entity = new MapRealmEntityImpl();
+        MapRealmEntity entity = DeepCloner.DUMB_CLONER.newInstance(MapRealmEntity.class);
         entity.setId(id);
         entity.setName(name);
 
@@ -393,8 +394,13 @@ public class MapRealmProvider implements RealmProvider {
 
     @Override
     @Deprecated
-    public Stream<GroupModel> searchForGroupByNameStream(RealmModel realm, String search, Integer firstResult, Integer maxResults) {
-        return session.groups().searchForGroupByNameStream(realm, search, firstResult, maxResults);
+    public Stream<GroupModel> searchForGroupByNameStream(RealmModel realm, String search, Boolean exact, Integer firstResult, Integer maxResults) {
+        return session.groups().searchForGroupByNameStream(realm, search, exact, firstResult, maxResults);
+    }
+
+    @Override
+    public Stream<GroupModel> searchGroupsByAttributes(RealmModel realm, Map<String, String> attributes, Integer firstResult, Integer maxResults) {
+        return session.groups().searchGroupsByAttributes(realm, attributes, firstResult, maxResults);
     }
 
     @Override

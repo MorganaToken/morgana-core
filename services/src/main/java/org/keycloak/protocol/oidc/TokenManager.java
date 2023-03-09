@@ -19,7 +19,7 @@ package org.keycloak.protocol.oidc;
 
 import java.util.HashMap;
 import org.jboss.logging.Logger;
-import org.jboss.resteasy.spi.HttpRequest;
+import org.keycloak.http.HttpRequest;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.OAuthErrorException;
 import org.keycloak.TokenCategory;
@@ -45,6 +45,7 @@ import org.keycloak.models.ClientModel;
 import org.keycloak.models.ClientScopeModel;
 import org.keycloak.models.ClientSessionContext;
 import org.keycloak.models.Constants;
+import org.keycloak.models.ImpersonationSessionNote;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RoleModel;
@@ -259,6 +260,13 @@ public class TokenManager {
 
             UserSessionModel userSession = new UserSessionCrossDCManager(session).getUserSessionWithClient(realm, token.getSessionState(), false, client.getId());
 
+            if (userSession == null) {
+                // also try to resolve sessions created during token exchange when the user is impersonated
+                userSession = session.sessions().getUserSessionWithPredicate(realm,
+                        token.getSessionState(), false,
+                        model -> client.getId().equals(model.getNote(ImpersonationSessionNote.IMPERSONATOR_CLIENT.toString())));
+            }
+
             if (AuthenticationManager.isSessionValid(realm, userSession)) {
                 valid = isUserValid(session, realm, token, userSession.getUser());
             } else {
@@ -348,13 +356,10 @@ public class TokenManager {
 
         // Fallback to lookup user based on username (preferred_username claim)
         if (token.getPreferredUsername() != null) {
-            user = session.users().getUserByUsername(realm, token.getPreferredUsername());
-            if (user != null) {
-                return user;
-            }
+            return session.users().getUserByUsername(realm, token.getPreferredUsername());
         }
 
-        return user;
+        return null;
     }
 
 
@@ -650,9 +655,6 @@ public class TokenManager {
         if (scopes == null) {
             return true;
         }
-        if (authorizationRequestContext.getAuthorizationDetailEntries() == null || authorizationRequestContext.getAuthorizationDetailEntries().isEmpty()) {
-            return false;
-        }
         Collection<String> requestedScopes = TokenManager.parseScopeParameter(scopes).collect(Collectors.toSet());
         Set<String> rarScopes = authorizationRequestContext.getAuthorizationDetailEntries()
                 .stream()
@@ -662,6 +664,10 @@ public class TokenManager {
 
         if (TokenUtil.isOIDCRequest(scopes)) {
             requestedScopes.remove(OAuth2Constants.SCOPE_OPENID);
+        }
+
+        if ((authorizationRequestContext.getAuthorizationDetailEntries() == null || authorizationRequestContext.getAuthorizationDetailEntries().isEmpty()) && requestedScopes.size()>0) {
+            return false;
         }
 
         if (logger.isTraceEnabled()) {
@@ -1326,7 +1332,7 @@ public class TokenManager {
     /**
      * Check if access token was revoked with OAuth revocation endpoint
      */
-    public static class TokenRevocationCheck implements TokenVerifier.Predicate<AccessToken> {
+    public static class TokenRevocationCheck implements TokenVerifier.Predicate<JsonWebToken> {
 
         private final KeycloakSession session;
 
@@ -1335,7 +1341,7 @@ public class TokenManager {
         }
 
         @Override
-        public boolean test(AccessToken token) {
+        public boolean test(JsonWebToken token) {
             SingleUseObjectProvider singleUseStore = session.getProvider(SingleUseObjectProvider.class);
             return !singleUseStore.contains(token.getId() + SingleUseObjectProvider.REVOKED_KEY);
         }

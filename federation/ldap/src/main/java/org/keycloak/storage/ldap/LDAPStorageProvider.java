@@ -93,11 +93,11 @@ import static org.keycloak.utils.StreamsUtil.paginatedStream;
  */
 public class LDAPStorageProvider implements UserStorageProvider,
         CredentialInputValidator,
-        CredentialInputUpdater.Streams,
+        CredentialInputUpdater,
         CredentialAuthentication,
-        UserLookupProvider.Streams,
+        UserLookupProvider,
         UserRegistrationProvider,
-        UserQueryProvider.Streams,
+        UserQueryProvider,
         ImportedUserValidation {
     private static final Logger logger = Logger.getLogger(LDAPStorageProvider.class);
     private static final int DEFAULT_MAX_RESULTS = Integer.MAX_VALUE >> 1;
@@ -236,8 +236,8 @@ public class LDAPStorageProvider implements UserStorageProvider,
 
     private void checkDNChanged(RealmModel realm, UserModel local, LDAPObject ldapObject) {
         String dnFromDB = local.getFirstAttribute(LDAPConstants.LDAP_ENTRY_DN);
-        String ldapDn = ldapObject.getDn().toString();
-        if (!ldapDn.equals(dnFromDB)) {
+        String ldapDn = ldapObject.getDn() == null? null : ldapObject.getDn().toString();
+        if (ldapDn != null && !ldapDn.equals(dnFromDB)) {
             logger.debugf("Updated LDAP DN of user '%s' to '%s'", local.getUsername(), ldapDn);
             local.setSingleAttribute(LDAPConstants.LDAP_ENTRY_DN, ldapDn);
 
@@ -284,7 +284,7 @@ public class LDAPStorageProvider implements UserStorageProvider,
         if (!synchronizeRegistrations()) {
             return null;
         }
-        UserModel user = null;
+        final UserModel user;
         if (model.isImportEnabled()) {
             user = UserStoragePrivateUtil.userLocalStorage(session).addUser(realm, username);
             user.setFederationLink(model.getId());
@@ -292,10 +292,11 @@ public class LDAPStorageProvider implements UserStorageProvider,
             user = new InMemoryUserAdapter(session, realm, new StorageId(model.getId(), username).getId());
             user.setUsername(username);
         }
-        LDAPObject ldapUser = LDAPUtils.addUserToLDAP(this, realm, user);
-        LDAPUtils.checkUuid(ldapUser, ldapIdentityStore.getConfig());
-        user.setSingleAttribute(LDAPConstants.LDAP_ID, ldapUser.getUuid());
-        user.setSingleAttribute(LDAPConstants.LDAP_ENTRY_DN, ldapUser.getDn().toString());
+        LDAPObject ldapUser = LDAPUtils.addUserToLDAP(this, realm, user, ldapObject -> {
+            LDAPUtils.checkUuid(ldapObject, ldapIdentityStore.getConfig());
+            user.setSingleAttribute(LDAPConstants.LDAP_ID, ldapObject.getUuid());
+            user.setSingleAttribute(LDAPConstants.LDAP_ENTRY_DN, ldapObject.getDn().toString());
+        });
 
         // Add the user to the default groups and add default required actions
         UserModel proxy = proxy(realm, user, ldapUser, true);
@@ -435,7 +436,12 @@ public class LDAPStorageProvider implements UserStorageProvider,
 
     protected List<LDAPObject> searchLDAP(RealmModel realm, Map<String, String> attributes) {
 
-        List<LDAPObject> results = new ArrayList<LDAPObject>();
+        // return a stable ordered result to the caller
+        List<LDAPObject> results = new ArrayList<>();
+
+        // a set to ensure fast uniqueness checks based on equals/hashCode of LDAPObject
+        Set<LDAPObject> unique = new HashSet<>();
+
         if (attributes.containsKey(UserModel.USERNAME)) {
             try (LDAPQuery ldapQuery = LDAPUtils.createQueryForUserSearch(this, realm)) {
                 LDAPQueryConditionsBuilder conditionsBuilder = new LDAPQueryConditionsBuilder();
@@ -446,6 +452,7 @@ public class LDAPStorageProvider implements UserStorageProvider,
 
                 List<LDAPObject> ldapObjects = ldapQuery.getResultList();
                 results.addAll(ldapObjects);
+                unique.addAll(ldapObjects);
             }
         }
 
@@ -458,7 +465,13 @@ public class LDAPStorageProvider implements UserStorageProvider,
                 ldapQuery.addWhereCondition(emailCondition);
 
                 List<LDAPObject> ldapObjects = ldapQuery.getResultList();
-                results.addAll(ldapObjects);
+                ldapObjects.forEach(ldapObject -> {
+                    // ensure that no entity is listed twice and still preserve the order of returned entities
+                    if (!unique.contains(ldapObject)) {
+                        results.add(ldapObject);
+                        unique.add(ldapObject);
+                    }
+                });
             }
         }
 
@@ -475,7 +488,13 @@ public class LDAPStorageProvider implements UserStorageProvider,
                 }
 
                 List<LDAPObject> ldapObjects = ldapQuery.getResultList();
-                results.addAll(ldapObjects);
+                ldapObjects.forEach(ldapObject -> {
+                    // ensure that no entity is listed twice and still preserve the order of returned entities
+                    if (!unique.contains(ldapObject)) {
+                        results.add(ldapObject);
+                        unique.add(ldapObject);
+                    }
+                });
             }
         }
 

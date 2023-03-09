@@ -1,10 +1,5 @@
 package org.keycloak.config;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
-
 public class ProxyOptions {
 
     public enum Mode {
@@ -25,10 +20,13 @@ public class ProxyOptions {
             .defaultValue(Boolean.FALSE)
             .build();
 
-    public static final List<Option<?>> ALL_OPTIONS = new ArrayList<>();
+    public static final Option<Boolean> PROXY_FORWARDED_HEADER_ENABLED = new OptionBuilder<>("proxy-allow-forwarded-header", Boolean.class)
+            .category(OptionCategory.PROXY)
+            .defaultValue(Boolean.FALSE)
+            .build();
 
-    static {
-        ALL_OPTIONS.add(PROXY);
-        ALL_OPTIONS.add(PROXY_FORWARDED_HOST);
-    }
+    public static final Option<Boolean> PROXY_X_FORWARDED_HEADER_ENABLED = new OptionBuilder<>("proxy-allow-x-forwarded-header", Boolean.class)
+            .category(OptionCategory.PROXY)
+            .defaultValue(Boolean.FALSE)
+            .build();
 }

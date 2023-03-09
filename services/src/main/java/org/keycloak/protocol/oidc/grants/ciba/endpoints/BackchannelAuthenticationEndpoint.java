@@ -17,8 +17,9 @@
 package org.keycloak.protocol.oidc.grants.ciba.endpoints;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.jboss.logging.Logger;
 import org.jboss.resteasy.annotations.cache.NoCache;
-import org.jboss.resteasy.spi.HttpRequest;
+import org.keycloak.http.HttpRequest;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.OAuthErrorException;
 import org.keycloak.events.EventBuilder;
@@ -48,7 +49,6 @@ import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
 import javax.ws.rs.Produces;
 import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
@@ -61,6 +61,8 @@ import static org.keycloak.protocol.oidc.OIDCLoginProtocol.ID_TOKEN_HINT;
 import static org.keycloak.protocol.oidc.OIDCLoginProtocol.LOGIN_HINT_PARAM;
 
 public class BackchannelAuthenticationEndpoint extends AbstractCibaEndpoint {
+
+    private static final Logger log = Logger.getLogger(BackchannelAuthenticationEndpoint.class);
 
     private final RealmModel realm;
 
@@ -76,7 +78,8 @@ public class BackchannelAuthenticationEndpoint extends AbstractCibaEndpoint {
     @NoCache
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response processGrantRequest(@Context HttpRequest httpRequest) {
+    public Response processGrantRequest() {
+        HttpRequest httpRequest = session.getContext().getHttpRequest();
         CIBAAuthenticationRequest request = authorizeClient(httpRequest.getDecodedFormParameters());
 
         try {
@@ -116,6 +119,7 @@ public class BackchannelAuthenticationEndpoint extends AbstractCibaEndpoint {
                         .build();
             }
         } catch (Exception e) {
+            log.warn("Unexpected failure when processing CIBA authentication request", e);
             throw new ErrorResponseException(OAuthErrorException.SERVER_ERROR, "Failed to send authentication request", Response.Status.SERVICE_UNAVAILABLE);
         }
 

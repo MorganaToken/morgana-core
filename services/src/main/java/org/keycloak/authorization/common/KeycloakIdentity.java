@@ -131,7 +131,7 @@ public class KeycloakIdentity implements Identity {
             }
 
             ClientModel client = realm.getClientByClientId(token.getIssuedFor());
-            AuthenticatedClientSessionModel clientSessionModel = userSession.getAuthenticatedClientSessions().get(client.getId());
+            AuthenticatedClientSessionModel clientSessionModel = userSession.getAuthenticatedClientSessionByClient(client.getId());
 
             ClientSessionContext clientSessionCtx = DefaultClientSessionContext.fromClientSessionScopeParameter(clientSessionModel, keycloakSession);
             this.accessToken = new TokenManager().createClientAccessToken(keycloakSession, realm, client, userSession.getUser(), userSession, clientSessionCtx);
@@ -234,6 +234,9 @@ public class KeycloakIdentity implements Identity {
             }
 
             UserModel userSession = getUserFromToken();
+            if (userSession == null) {
+                throw new IllegalArgumentException("User from token not found");
+            }
 
             this.resourceServer = clientUser != null && userSession.getId().equals(clientUser.getId());
 

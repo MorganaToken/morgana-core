@@ -48,7 +48,11 @@ import org.keycloak.protocol.oidc.utils.OIDCResponseMode;
 import org.keycloak.protocol.oidc.utils.OIDCResponseType;
 import org.keycloak.representations.AccessTokenResponse;
 import org.keycloak.representations.adapters.action.PushNotBeforeAction;
+import org.keycloak.services.CorsErrorResponseException;
 import org.keycloak.services.ServicesLogger;
+import org.keycloak.services.clientpolicy.ClientPolicyException;
+import org.keycloak.services.clientpolicy.context.ImplicitHybridTokenResponse;
+import org.keycloak.services.clientpolicy.context.TokenRefreshContext;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.managers.AuthenticationSessionManager;
 import org.keycloak.protocol.oidc.utils.OAuth2Code;
@@ -267,6 +271,15 @@ public class OIDCLoginProtocol implements LoginProtocol {
                     responseBuilder.generateStateHash(state);
             }
 
+            try {
+                session.clientPolicy().triggerOnEvent(new ImplicitHybridTokenResponse(authSession, clientSessionCtx, responseBuilder));
+            } catch (ClientPolicyException cpe) {
+                event.error(cpe.getError());
+                new AuthenticationSessionManager(session).removeAuthenticationSession(realm, authSession, true);
+                redirectUri.addParam(OAuth2Constants.ERROR_DESCRIPTION, cpe.getError());
+                return redirectUri.build();
+            }
+
             AccessTokenResponse res = responseBuilder.build();
 
             if (responseType.hasResponseType(OIDCResponseType.ID_TOKEN)) {
@@ -312,8 +325,13 @@ public class OIDCLoginProtocol implements LoginProtocol {
         if (state != null) {
             redirectUri.addParam(OAuth2Constants.STATE, state);
         }
-        
-        new AuthenticationSessionManager(session).removeAuthenticationSession(realm, authSession, true);
+
+        if (error == Error.PASSIVE_LOGIN_REQUIRED || error == Error.PASSIVE_INTERACTION_REQUIRED) {
+            // passive check error, just delete the tabId maintaining session and don't reset the restart cookie
+            new AuthenticationSessionManager(session).removeTabIdInAuthenticationSession(realm, authSession);
+        } else {
+            new AuthenticationSessionManager(session).removeAuthenticationSession(realm, authSession, true);
+        }
         return redirectUri.build();
     }
 

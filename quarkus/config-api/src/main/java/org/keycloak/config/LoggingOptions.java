@@ -1,11 +1,8 @@
 package org.keycloak.config;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 public class LoggingOptions {
 
@@ -98,6 +95,13 @@ public class LoggingOptions {
             .defaultValue("%d{yyyy-MM-dd HH:mm:ss,SSS} %-5p [%c] (%t) %s%e%n")
             .build();
 
+    public static final Option<Output> LOG_FILE_OUTPUT = new OptionBuilder<>("log-file-output", Output.class)
+            .category(OptionCategory.LOGGING)
+            .defaultValue(DEFAULT_CONSOLE_OUTPUT)
+            .description("Set the log output to JSON or default (plain) unstructured logging.")
+            .build();
+
+
     public static final Option<Boolean> LOG_GELF_ENABLED = new OptionBuilder<>("log-gelf-enabled", Boolean.class)
             .category(OptionCategory.LOGGING)
             .hidden()
@@ -164,28 +168,4 @@ public class LoggingOptions {
             .description("Include source code location.")
             .defaultValue(Boolean.TRUE)
             .build();
-
-    public static final List<Option<?>> ALL_OPTIONS = new ArrayList<>();
-
-    static {
-        ALL_OPTIONS.add(LOG);
-        ALL_OPTIONS.add(LOG_LEVEL);
-        ALL_OPTIONS.add(LOG_CONSOLE_OUTPUT);
-        ALL_OPTIONS.add(LOG_CONSOLE_FORMAT);
-        ALL_OPTIONS.add(LOG_CONSOLE_COLOR);
-        ALL_OPTIONS.add(LOG_CONSOLE_ENABLED);
-        ALL_OPTIONS.add(LOG_FILE_ENABLED);
-        ALL_OPTIONS.add(LOG_FILE);
-        ALL_OPTIONS.add(LOG_FILE_FORMAT);
-        ALL_OPTIONS.add(LOG_GELF_ENABLED);
-        ALL_OPTIONS.add(LOG_GELF_HOST);
-        ALL_OPTIONS.add(LOG_GELF_PORT);
-        ALL_OPTIONS.add(LOG_GELF_VERSION);
-        ALL_OPTIONS.add(LOG_GELF_INCLUDE_STACK_TRACE);
-        ALL_OPTIONS.add(LOG_GELF_TIMESTAMP_FORMAT);
-        ALL_OPTIONS.add(LOG_GELF_FACILITY);
-        ALL_OPTIONS.add(LOG_GELF_MAX_MSG_SIZE);
-        ALL_OPTIONS.add(LOG_GELF_INCLUDE_LOG_MSG_PARAMS);
-        ALL_OPTIONS.add(LOG_GELF_INCLUDE_LOCATION);
-    }
 }

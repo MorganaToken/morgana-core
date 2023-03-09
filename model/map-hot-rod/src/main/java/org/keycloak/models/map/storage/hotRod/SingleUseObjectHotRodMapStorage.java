@@ -18,23 +18,21 @@
 package org.keycloak.models.map.storage.hotRod;
 
 import org.infinispan.client.hotrod.RemoteCache;
-import org.keycloak.models.ActionTokenValueModel;
+import org.keycloak.models.SingleUseObjectValueModel;
 import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.map.common.AbstractEntity;
 import org.keycloak.models.map.common.DeepCloner;
 import org.keycloak.models.map.common.StringKeyConverter;
+import org.keycloak.models.map.storage.MapKeycloakTransaction;
 import org.keycloak.models.map.storage.chm.MapModelCriteriaBuilder;
 import org.keycloak.models.map.storage.chm.SingleUseObjectKeycloakTransaction;
-import org.keycloak.models.map.storage.MapKeycloakTransaction;
 import org.keycloak.models.map.storage.QueryParameters;
 import org.keycloak.models.map.storage.chm.MapFieldPredicates;
 import org.keycloak.models.map.storage.chm.SingleUseObjectModelCriteriaBuilder;
 import org.keycloak.models.map.storage.criteria.DefaultModelCriteria;
-import org.keycloak.models.map.storage.hotRod.common.AbstractHotRodEntity;
-import org.keycloak.models.map.storage.hotRod.common.HotRodEntityDelegate;
 import org.keycloak.models.map.storage.hotRod.common.HotRodEntityDescriptor;
 import org.keycloak.models.map.storage.hotRod.singleUseObject.HotRodSingleUseObjectEntity;
 import org.keycloak.models.map.storage.hotRod.singleUseObject.HotRodSingleUseObjectEntityDelegate;
+import org.keycloak.models.map.storage.hotRod.transaction.AllAreasHotRodTransactionsWrapper;
 import org.keycloak.storage.SearchableModelField;
 
 import java.util.Map;
@@ -44,35 +42,32 @@ import java.util.stream.Stream;
 /**
  * @author <a href="mailto:mkanis@redhat.com">Martin Kanis</a>
  */
-public class SingleUseObjectHotRodMapStorage<K, E extends AbstractHotRodEntity, V extends HotRodEntityDelegate<E> & AbstractEntity, M>
-        extends HotRodMapStorage<String, HotRodSingleUseObjectEntity, HotRodSingleUseObjectEntityDelegate, ActionTokenValueModel> {
+public class SingleUseObjectHotRodMapStorage
+        extends HotRodMapStorage<String, HotRodSingleUseObjectEntity, HotRodSingleUseObjectEntityDelegate, SingleUseObjectValueModel> {
 
     private final StringKeyConverter<String> keyConverter;
     private final HotRodEntityDescriptor<HotRodSingleUseObjectEntity, HotRodSingleUseObjectEntityDelegate> storedEntityDescriptor;
     private final DeepCloner cloner;
 
-    public SingleUseObjectHotRodMapStorage(RemoteCache<String, HotRodSingleUseObjectEntity> remoteCache, StringKeyConverter<String> keyConverter,
+    public SingleUseObjectHotRodMapStorage(KeycloakSession session, RemoteCache<String, HotRodSingleUseObjectEntity> remoteCache, StringKeyConverter<String> keyConverter,
                                            HotRodEntityDescriptor<HotRodSingleUseObjectEntity, HotRodSingleUseObjectEntityDelegate> storedEntityDescriptor,
-                                           DeepCloner cloner) {
-        super(remoteCache, keyConverter, storedEntityDescriptor, cloner);
+                                           DeepCloner cloner, AllAreasHotRodTransactionsWrapper txWrapper, Long lockTimeout) {
+        super(session, remoteCache, keyConverter, storedEntityDescriptor, cloner, txWrapper, lockTimeout);
         this.keyConverter = keyConverter;
         this.storedEntityDescriptor = storedEntityDescriptor;
         this.cloner = cloner;
     }
 
     @Override
-    protected MapKeycloakTransaction<HotRodSingleUseObjectEntityDelegate, ActionTokenValueModel> createTransactionInternal(KeycloakSession session) {
-        Map<SearchableModelField<? super ActionTokenValueModel>, MapModelCriteriaBuilder.UpdatePredicatesFunc<K, HotRodSingleUseObjectEntityDelegate, ActionTokenValueModel>> fieldPredicates =
-                MapFieldPredicates.getPredicates((Class<ActionTokenValueModel>) storedEntityDescriptor.getModelTypeClass());
+    protected MapKeycloakTransaction<HotRodSingleUseObjectEntityDelegate, SingleUseObjectValueModel> createTransactionInternal(KeycloakSession session) {
+        Map<SearchableModelField<? super SingleUseObjectValueModel>, MapModelCriteriaBuilder.UpdatePredicatesFunc<String, HotRodSingleUseObjectEntityDelegate, SingleUseObjectValueModel>> fieldPredicates =
+                MapFieldPredicates.getPredicates((Class<SingleUseObjectValueModel>) storedEntityDescriptor.getModelTypeClass());
        return new SingleUseObjectKeycloakTransaction(this, keyConverter, cloner, fieldPredicates);
     }
 
     @Override
     public HotRodSingleUseObjectEntityDelegate create(HotRodSingleUseObjectEntityDelegate value) {
         if (value.getId() == null) {
-            if (value.getUserId() != null && value.getActionId() != null && value.getActionVerificationNonce() != null) {
-                value.setId(value.getUserId() + ":" + value.getActionId() + ":" + value.getActionVerificationNonce());
-            }
             if (value.getObjectKey() != null) {
                 value.setId(value.getObjectKey());
             }
@@ -81,8 +76,8 @@ public class SingleUseObjectHotRodMapStorage<K, E extends AbstractHotRodEntity, 
     }
 
     @Override
-    public Stream<HotRodSingleUseObjectEntityDelegate> read(QueryParameters<ActionTokenValueModel> queryParameters) {
-        DefaultModelCriteria<ActionTokenValueModel> criteria = queryParameters.getModelCriteriaBuilder();
+    public Stream<HotRodSingleUseObjectEntityDelegate> read(QueryParameters<SingleUseObjectValueModel> queryParameters) {
+        DefaultModelCriteria<SingleUseObjectValueModel> criteria = queryParameters.getModelCriteriaBuilder();
 
         if (criteria == null) {
             return Stream.empty();

@@ -81,7 +81,6 @@ import org.keycloak.services.messages.Messages;
 import org.keycloak.services.resources.LoginActionsService;
 import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.theme.FreeMarkerException;
-import org.keycloak.theme.FreeMarkerUtil;
 import org.keycloak.theme.Theme;
 import org.keycloak.theme.beans.AdvancedMessageFormatterMethod;
 import org.keycloak.theme.beans.LocaleBean;
@@ -89,6 +88,7 @@ import org.keycloak.theme.beans.MessageBean;
 import org.keycloak.theme.beans.MessageFormatterMethod;
 import org.keycloak.theme.beans.MessageType;
 import org.keycloak.theme.beans.MessagesPerFieldBean;
+import org.keycloak.theme.freemarker.FreeMarkerProvider;
 import org.keycloak.userprofile.UserProfileContext;
 import org.keycloak.userprofile.UserProfileProvider;
 import org.keycloak.utils.MediaType;
@@ -121,15 +121,15 @@ public class FreeMarkerLoginFormsProvider implements LoginFormsProvider {
     protected ClientModel client;
     protected UriInfo uriInfo;
 
-    protected FreeMarkerUtil freeMarker;
+    protected FreeMarkerProvider freeMarker;
 
     protected UserModel user;
 
     protected final Map<String, Object> attributes = new HashMap<>();
 
-    public FreeMarkerLoginFormsProvider(KeycloakSession session, FreeMarkerUtil freeMarker) {
+    public FreeMarkerLoginFormsProvider(KeycloakSession session) {
         this.session = session;
-        this.freeMarker = freeMarker;
+        this.freeMarker = session.getProvider(FreeMarkerProvider.class);
         this.attributes.put("scripts", new LinkedList<>());
         this.realm = session.getContext().getRealm();
         this.client = session.getContext().getClient();
@@ -275,6 +275,7 @@ public class FreeMarkerLoginFormsProvider implements LoginFormsProvider {
                         new OAuthGrantBean(accessCode, client, clientScopesRequested));
                 break;
             case CODE:
+                attributes.remove("message"); // No need to include "message" attribute as error is included in separate field anyway
                 attributes.put(OAuth2Constants.CODE, new CodeBean(accessCode, messageType == MessageType.ERROR ? getFirstMessageUnformatted() : null));
                 break;
             case X509_CONFIRM:
@@ -459,7 +460,7 @@ public class FreeMarkerLoginFormsProvider implements LoginFormsProvider {
             attributes.put("realm", new RealmBean(realm));
 
             List<IdentityProviderModel> identityProviders = LoginFormsUtil
-                    .filterIdentityProviders(realm.getIdentityProvidersStream(), session, context);
+                    .filterIdentityProvidersForTheme(realm.getIdentityProvidersStream(), session, context);
             attributes.put("social", new IdentityProviderBean(realm, session, identityProviders, baseUriWithCodeAndClientId));
 
             attributes.put("url", new UrlBean(realm, theme, baseUri, this.actionUri));

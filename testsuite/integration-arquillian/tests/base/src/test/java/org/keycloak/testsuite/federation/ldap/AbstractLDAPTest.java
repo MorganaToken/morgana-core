@@ -29,9 +29,6 @@ import org.keycloak.storage.ldap.mappers.LDAPStorageMapper;
 import org.keycloak.testsuite.AbstractTestRealmKeycloakTest;
 import org.keycloak.testsuite.AssertEvents;
 import org.keycloak.testsuite.ProfileAssume;
-import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
-import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
-import org.keycloak.testsuite.pages.AccountPasswordPage;
 import org.keycloak.testsuite.pages.AccountUpdateProfilePage;
 import org.keycloak.testsuite.pages.AppPage;
 import org.keycloak.testsuite.pages.LoginPage;
@@ -41,11 +38,9 @@ import org.keycloak.testsuite.pages.RegisterPage;
 import org.keycloak.testsuite.util.LDAPRule;
 import org.junit.BeforeClass;
 
-
 /**
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
  */
-@AuthServerContainerExclude(AuthServer.REMOTE)
 public abstract class AbstractLDAPTest extends AbstractTestRealmKeycloakTest {
 
     static final String TEST_REALM_NAME = "test";
@@ -63,9 +58,6 @@ public abstract class AbstractLDAPTest extends AbstractTestRealmKeycloakTest {
 
     @Page
     protected RegisterPage registerPage;
-
-    @Page
-    protected AccountPasswordPage changePasswordPage;
 
     @Page
     protected AccountUpdateProfilePage profilePage;

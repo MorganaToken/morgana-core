@@ -45,6 +45,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.keycloak.testsuite.broker.BrokerRunOnServerUtil.assertHardCodedSessionNote;
 import static org.keycloak.testsuite.broker.BrokerRunOnServerUtil.configureAutoLinkFlow;
+import static org.keycloak.testsuite.broker.BrokerTestConstants.IDP_OIDC_ALIAS;
 import static org.keycloak.testsuite.broker.BrokerTestConstants.USER_EMAIL;
 import static org.keycloak.testsuite.broker.BrokerTestTools.getConsumerRoot;
 import static org.keycloak.testsuite.broker.BrokerTestTools.getProviderRoot;
@@ -1007,9 +1008,24 @@ public abstract class AbstractFirstBrokerLoginTest extends AbstractInitializedBa
         Assert.assertEquals("no-first-name", accountUpdateProfilePage.getUsername());
 
         RealmRepresentation consumerRealmRep = adminClient.realm(bc.consumerRealmName()).toRepresentation();
+
+        events.expectAccount(EventType.IDENTITY_PROVIDER_FIRST_LOGIN).realm(consumerRealmRep).user((String)null)
+                .detail(Details.IDENTITY_PROVIDER, bc.getIDPAlias())
+                .detail(Details.IDENTITY_PROVIDER_USERNAME, "no-first-name")
+                .assertEvent(getFirstConsumerEvent());
+
+        events.expectAccount(EventType.UPDATE_PROFILE).realm(consumerRealmRep).user((String)null)
+                .detail(Details.CONTEXT, UserProfileContext.IDP_REVIEW.name())
+                .assertEvent(getFirstConsumerEvent());
+
+        events.expectAccount(EventType.REGISTER).realm(consumerRealmRep).user(Matchers.any(String.class)).session((String) null)
+                .detail(Details.IDENTITY_PROVIDER_USERNAME, "no-first-name")
+                .detail(Details.REGISTER_METHOD, "broker")
+                .assertEvent(getFirstConsumerEvent());
+
         events.expectAccount(EventType.LOGIN).realm(consumerRealmRep).user(Matchers.any(String.class)).session(Matchers.any(String.class))
             .detail(Details.IDENTITY_PROVIDER_USERNAME, "no-first-name")
-            .detail(Details.REGISTER_METHOD, "broker")
+            .detail(Details.IDENTITY_PROVIDER, bc.getIDPAlias())
             .assertEvent(getFirstConsumerEvent());
     }
 
@@ -1039,15 +1055,31 @@ public abstract class AbstractFirstBrokerLoginTest extends AbstractInitializedBa
         Assert.assertEquals("no-first-name", accountUpdateProfilePage.getUsername());
 
         RealmRepresentation consumerRealmRep = adminClient.realm(bc.consumerRealmName()).toRepresentation();
+
+        events.expectAccount(EventType.IDENTITY_PROVIDER_FIRST_LOGIN).realm(consumerRealmRep).user((String)null)
+                .detail(Details.IDENTITY_PROVIDER, bc.getIDPAlias())
+                .detail(Details.IDENTITY_PROVIDER_USERNAME, "no-first-name")
+                .assertEvent(getFirstConsumerEvent());
+
+        events.expectAccount(EventType.UPDATE_PROFILE).realm(consumerRealmRep).user((String)null)
+                .detail(Details.CONTEXT, UserProfileContext.IDP_REVIEW.name())
+                .assertEvent(getFirstConsumerEvent());
+
         events.expectAccount(EventType.UPDATE_EMAIL).realm(consumerRealmRep).user((String)null).session((String) null)
             .detail(Details.CONTEXT, UserProfileContext.IDP_REVIEW.name())
             .detail(Details.IDENTITY_PROVIDER_USERNAME, "no-first-name")
             .detail(Details.PREVIOUS_EMAIL, "no-first-name@localhost.com")
             .detail(Details.UPDATED_EMAIL, "new-email@localhost.com")
             .assertEvent(getFirstConsumerEvent());
-        events.expectAccount(EventType.LOGIN).realm(consumerRealmRep).user(Matchers.any(String.class)).session(Matchers.any(String.class))
+
+        events.expectAccount(EventType.REGISTER).realm(consumerRealmRep).user(Matchers.any(String.class)).session((String) null)
             .detail(Details.IDENTITY_PROVIDER_USERNAME, "no-first-name")
             .detail(Details.REGISTER_METHOD, "broker")
+            .assertEvent(events.poll());
+
+        events.expectAccount(EventType.LOGIN).realm(consumerRealmRep).user(Matchers.any(String.class)).session(Matchers.any(String.class))
+            .detail(Details.IDENTITY_PROVIDER_USERNAME, "no-first-name")
+            .detail(Details.IDENTITY_PROVIDER, bc.getIDPAlias())
             .assertEvent(events.poll());
     }
 

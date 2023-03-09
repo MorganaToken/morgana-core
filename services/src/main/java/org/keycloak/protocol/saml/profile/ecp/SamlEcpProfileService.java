@@ -22,7 +22,7 @@ import org.keycloak.events.EventBuilder;
 import org.keycloak.models.AuthenticationFlowModel;
 import org.keycloak.models.AuthenticatedClientSessionModel;
 import org.keycloak.models.ClientModel;
-import org.keycloak.models.RealmModel;
+import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.utils.DefaultAuthenticationFlows;
 import org.keycloak.protocol.saml.JaxrsSAML2BindingBuilder;
@@ -37,6 +37,7 @@ import org.keycloak.saml.common.constants.JBossSAMLURIConstants;
 import org.keycloak.saml.common.exceptions.ConfigurationException;
 import org.keycloak.saml.common.exceptions.ProcessingException;
 import org.keycloak.saml.validators.DestinationValidator;
+import org.keycloak.services.ErrorPage;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.sessions.AuthenticationSessionModel;
 import org.w3c.dom.Document;
@@ -57,8 +58,8 @@ public class SamlEcpProfileService extends SamlService {
     private static final String NS_PREFIX_SAML_PROTOCOL = "samlp";
     private static final String NS_PREFIX_SAML_ASSERTION = "saml";
 
-    public SamlEcpProfileService(RealmModel realm, EventBuilder event, DestinationValidator destinationValidator) {
-        super(realm, event, destinationValidator);
+    public SamlEcpProfileService(KeycloakSession session, EventBuilder event, DestinationValidator destinationValidator) {
+        super(session, event, destinationValidator);
     }
 
     public Response authenticate(InputStream inputStream) {
@@ -68,8 +69,19 @@ public class SamlEcpProfileService extends SamlService {
     public Response authenticate(Document soapMessage) {
         try {
             return new PostBindingProtocol() {
+
+                @Override
+                protected Response error(KeycloakSession session, AuthenticationSessionModel authenticationSession, Response.Status status, String message, Object... parameters) {
+                    return Soap.createFault().code("error").reason(message).build();
+                }
+
                 @Override
                 protected String getBindingType(AuthnRequestType requestAbstractType) {
+                    return SamlProtocol.SAML_SOAP_BINDING;
+                }
+
+                @Override
+                protected String getBindingType() {
                     return SamlProtocol.SAML_SOAP_BINDING;
                 }
 
