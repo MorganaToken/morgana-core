@@ -25,8 +25,8 @@ See [KEYCLOAK-17812](https://issues.redhat.com/browse/KEYCLOAK-17812) for more d
 ---    
 First clone the Keycloak repository:
     
-    git clone https://github.com/keycloak/keycloak.git
-    cd keycloak
+    git clone https://github.com/MorganaToken/morgana-core.git
+    cd morgana-core
     
 To build Keycloak run:
 
@@ -36,13 +36,9 @@ This will build all modules and run the testsuite.
 
 To build the ZIP distribution run:
 
-    mvn clean install -Pdistribution
+    mvn clean install -Dmaven.test.skip
     
-Once completed you will find distribution archives in `distribution`.
-
-To build only the server run:
-
-    mvn -Pdistribution -pl distribution/server-dist -am -Dmaven.test.skip clean install
+Once completed you will find dist archives in `quarkus/dist/target/`.
 
 ---
 **NOTE**
@@ -55,19 +51,13 @@ Classes from `org.keycloak.testsuite.*` packages aren't suitable to be used in p
 
 Please, take a look at this [documentation](../quarkus/README.md).
 
-## Starting Keycloak
-
-To start Keycloak during development first build as specified above, then run:
-
-    mvn -f testsuite/utils/pom.xml exec:java -Pkeycloak-server 
-
-When running testsuite, by default an account with username `admin` and password `admin` will be created within the master realm at start.
+## Starting Morgana
 
 To start Keycloak from the server distribution first build the distribution it as specified above, then run:
 
-    tar xfz distribution/server-dist/target/keycloak-<VERSION>.tar.gz
+    tar xfz quarkus/dist/target/keycloak-<VERSION>.tar.gz
     cd keycloak-<VERSION>
-    bin/standalone.sh
+    bin/kc.sh start-dev
     
 To stop the server press `Ctrl + C`.
 
