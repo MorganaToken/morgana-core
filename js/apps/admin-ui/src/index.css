@@ -1,5 +1,7 @@
 img.keycloak__pageheader_brand {
   height: 35px;
+  display: flex;
+  align-items: center;
 }
 
 .keycloak__form {
